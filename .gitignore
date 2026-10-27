@@ -1,0 +1,30 @@
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# --- node / next ---
+node_modules/
+.next/
+web/.next/
+web/out/
+
+# --- 生成的图表与报告（每次运行会重新生成）---
+out/
+
+# --- 秘密（绝不提交）---
+.instabox_key
+.env
+*.pem
+
+# --- 杂项 ---
+matplotlib-*/
+.streamlit/
+.DS_Store
+Thumbs.db
+*.log
+
+# 训练出来的模型是可复现的产物：python scripts/train_model.py --data <folder>
+models/
