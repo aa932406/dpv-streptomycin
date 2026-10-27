@@ -30,7 +30,9 @@
 │   ├── ratiometric_calibration.py  比值法 I_MB/I_ref + LOD/LOQ  ← 推荐
 │   ├── demo_ml.py             数据泄漏 / 置换检验的教学演示
 │   ├── cross_batch.py         跨批次合并分析（方差来源 / 重复性 / 留一批次迁移）
-│   ├── ml_models.py           ★ 定量预测模型（10 个模型（含 XGBoost） × 2 套输入，R²/RMSE/RPD，留一电极）
+│   ├── ml_models.py           ★ 定量预测模型（9 个模型 × 2 套输入，R²/RMSE/RPD，留一电极）
+│   ├── train_model.py         ★ 训练一个能存盘的模型 → models/*.joblib + 模型卡 .json
+│   ├── predict_with_model.py  ★ 加载模型，读新样品的 .cor → 检出/未检出 + 浓度 + 区间
 │   ├── cv_peaks.py            读 CV 的 .cor：分扫描支、找峰、给 ipa/epc/ΔEp
 │   ├── area_calc.py           工作电极有效面积（Randles–Ševčík，CV 法）
 │   ├── make_demo_cv.py        生成演示 CV（4 个扫速，已知面积）
@@ -65,6 +67,7 @@
 │   ├── 散点图怎么读.md        ★ 三张散点图的读法（MB vs 内参 / PCA / 真值 vs 预测）
 │   ├── 全量检测报告.md        ★ 17 个文件夹全量跑一遍的结果表 + 修掉的 3 个问题
 │   ├── 部署说明.md            ★ Linux 服务器一键部署（端口 / systemd / 常见问题）
+│   ├── 训练与调用模型.md      ★ 怎么训练 / 模型长什么样 / 怎么调用（含两个踩过的坑）
 │   └── 运行说明.md            Windows 本地运行细节
 ├── requirements.txt
 ├── run_web.bat                双击开 Web 界面（Next.js + FastAPI）← 推荐入口
