@@ -1,0 +1,100 @@
+CORRW ASCII
+CorrTest for Windows: SN CS350H1907339  V5.6.1201.2  2.5H6.221207
+ID_DPVStripping
+Data:2026-06-25   Time:10:20:20
+ExpParmas:ExpType=ID_DPVStripping&-&ConditionE=0.8&-&DepositionE=-1.4&-&DepositionTime=270&-&CleanTime=120&-&QuietTime=30&-&VsOcp=vsRef&-&InitialE=-1&-&InitialVsOCP=vsRef&-&IncE=0.02&-&FinalE=0.5&-&FinalVsOCP=vsRef&-&PulseWidth=0.12&-&Amplitude=0.05&-&PulsePeriod=0.5&-&SampMode=0&-&SamplePeriod=1&-&SampleWidth=10&-&FileName=E:\数据\刘金权\黄日娇\20260625\裸dpv.cor&-&FilePath=E:\数据\刘金权\黄日娇\20260625\裸dpv.cor&-&Comment=&-&IsFrq=True&-&SampleInter=0.1&-&SampleFrq=20&-&Number=0&-&EnableAxisType=True&-&AxisType=IvsE&-&OcpValue=-0.104275&-&IsStopEvent=False&-&IsStop=False&-&IsStopCheck=True&-&Frq=20&-&ExpTime=427.5&-&DevParam=VoltRange=2&|&WaitSecond=5&|&IsCurrAutoRange=True&|&IsVoltAutoRange=True&|&OnlyInc=True&|&AutoMinCurrRange=6&|&IsIR=False&|&IrValue=100&|&VoltRule=1&|&CurrRule=1&|&XiaoboqiEnable=True&|&Xianboqi=True&|&ManualCurRange=3&|&IsContainsUnit=False&|&LowFilter=True&|&DigitalSmoothMode=0&|&DigitLPFCount=5&|&LineFre=0&|&OcpState=False&|&DeltaMaxOcp=10&|&BaseIO=6D0A00&|&GNDMode=1&|&IsLowSpeedFilter=False&-&CellParam=Area=1&|&Density=7.8&|&Dangliang=28&|&Type=2&|&REValue=0.241&|&Temp=25&|&Stern=18&|&Enable=False&|&IsGetTemp=False&|&EnableSpeed=False&|&RotatingSpeed=3200&-&AuxDeviceParams=&-&AuxIO=230200&-&ExpType=ID_DPVStripping&-&ExtData=False&-&Issampling=True&-&EnablePause=False&-&IsSoftLvbo=False&-&Cycles=1&-&IsPreScan=True&-&IsPreScanOpen=False
+Open Circuit Potential (V):-0.10428
+
+Temperature(℃):   25
+  Begin Information:            Cell Information
+      Surface Area:           1
+      Density:                7.8
+      Weight:                 28
+      Polarity:               0
+      PolarityI:              0
+      Corrosion Unit Type:    1
+      Reference Type:         2
+      Reference Potential:    0.241
+      Reference User-Defined: 2
+      Stern-Geary:            18
+  End Information:              Cell Information
+  Begin Experiment:
+      Axes Type:              3
+  End Experiment:
+E(V)		i(A/cm^2)		T(s)
+End Comments
+-1.00000E+00	3.66251E-06	390.0000
+-9.80000E-01	3.45714E-06	390.5000
+-9.60000E-01	3.33541E-06	391.0000
+-9.40000E-01	3.25174E-06	391.5000
+-9.20000E-01	3.20610E-06	392.0000
+-9.00000E-01	3.18328E-06	392.5000
+-8.80000E-01	3.16043E-06	393.0000
+-8.60000E-01	3.14522E-06	393.5000
+-8.40000E-01	3.13000E-06	394.0000
+-8.20000E-01	3.12240E-06	394.5000
+-8.00000E-01	3.11479E-06	395.0000
+-7.80000E-01	3.11479E-06	395.5000
+-7.60000E-01	3.11479E-06	396.0000
+-7.40000E-01	3.12237E-06	396.5000
+-7.20000E-01	3.12997E-06	397.0000
+-7.00000E-01	3.14519E-06	397.5000
+-6.80000E-01	3.17561E-06	398.0000
+-6.60000E-01	3.21364E-06	398.5000
+-6.40000E-01	3.27450E-06	399.0000
+-6.20000E-01	3.36577E-06	399.5000
+-6.00000E-01	3.45702E-06	400.0000
+-5.80000E-01	3.56351E-06	400.5000
+-5.60000E-01	3.66239E-06	401.0000
+-5.40000E-01	3.74606E-06	401.5000
+-5.20000E-01	3.82213E-06	402.0000
+-5.00000E-01	3.90580E-06	402.5000
+-4.80000E-01	3.98183E-06	403.0000
+-4.60000E-01	4.07311E-06	403.5000
+-4.40000E-01	4.14157E-06	404.0000
+-4.20000E-01	4.22524E-06	404.5000
+-4.00000E-01	4.29369E-06	405.0000
+-3.80000E-01	4.36215E-06	405.5000
+-3.60000E-01	4.40779E-06	406.0000
+-3.40000E-01	4.46100E-06	406.5000
+-3.20000E-01	4.49904E-06	407.0000
+-3.00000E-01	4.55989E-06	407.5000
+-2.80000E-01	4.62835E-06	408.0000
+-2.60000E-01	4.65877E-06	408.5000
+-2.40000E-01	4.70441E-06	409.0000
+-2.20000E-01	4.73484E-06	409.5000
+-2.00000E-01	4.75005E-06	410.0000
+-1.80000E-01	4.76526E-06	410.5000
+-1.60000E-01	4.77287E-06	411.0000
+-1.40000E-01	4.78044E-06	411.5000
+-1.20000E-01	4.78805E-06	412.0000
+-1.00000E-01	4.81087E-06	412.5000
+-8.00000E-02	4.84890E-06	413.0000
+-6.00000E-02	4.89454E-06	413.5000
+-4.00000E-02	4.92497E-06	414.0000
+-2.00000E-02	4.90975E-06	414.5000
+0.00000E+00	4.86411E-06	415.0000
+2.00000E-02	4.82608E-06	415.5000
+4.00000E-02	4.78044E-06	416.0000
+5.99999E-02	4.71959E-06	416.5000
+7.99999E-02	4.63592E-06	417.0000
+1.00000E-01	4.55986E-06	417.5000
+1.20000E-01	4.48379E-06	418.0000
+1.40000E-01	4.42294E-06	418.5000
+1.60000E-01	4.37730E-06	419.0000
+1.80000E-01	4.33167E-06	419.5000
+2.00000E-01	4.28606E-06	420.0000
+2.20000E-01	4.24042E-06	420.5000
+2.40000E-01	4.21760E-06	421.0000
+2.60000E-01	4.17957E-06	421.5000
+2.80000E-01	4.16436E-06	422.0000
+3.00000E-01	4.13393E-06	422.5000
+3.20000E-01	4.13393E-06	423.0000
+3.40000E-01	4.14154E-06	423.5000
+3.60000E-01	4.17196E-06	424.0000
+3.80000E-01	4.20999E-06	424.5000
+4.00000E-01	4.28606E-06	425.0000
+4.20000E-01	4.36209E-06	425.5000
+4.40000E-01	4.46097E-06	426.0000
+4.60000E-01	4.57507E-06	426.5000
+4.80000E-01	4.69677E-06	427.0000

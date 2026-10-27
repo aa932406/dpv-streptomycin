@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root { color-scheme: light; }
+
+html, body { min-height: 100%; }
+
+body {
+  margin: 0;
+  background: #f5f6f8;
+  color: #101828;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e8eaee;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.dock-shadow {
+  box-shadow: 0 8px 30px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #d9dce2; border-radius: 99px; border: 3px solid #f5f6f8; }

@@ -1,0 +1,7 @@
+@echo off
+chcp 65001 >nul
+setlocal
+cd /d "%~dp0"
+if not exist ".venv\Scripts\python.exe" python -m venv .venv
+".venv\Scripts\python.exe" -m pip install -q -r requirements.txt
+".venv\Scripts\python.exe" -m streamlit run "scripts\app.py" --server.headless false --browser.gatherUsageStats false

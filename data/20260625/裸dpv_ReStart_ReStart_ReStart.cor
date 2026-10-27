@@ -1,0 +1,60 @@
+CORRW ASCII
+CorrTest for Windows: SN CS350H1907339  V5.6.1201.2  2.5H6.221207
+ID_DPVStripping
+Data:2026-06-25   Time:10:46:41
+ExpParmas:ExpType=ID_DPVStripping&-&ConditionE=0.8&-&DepositionE=-1.4&-&DepositionTime=270&-&CleanTime=120&-&QuietTime=30&-&VsOcp=vsRef&-&InitialE=-0.5&-&InitialVsOCP=vsRef&-&IncE=0.02&-&FinalE=0.2&-&FinalVsOCP=vsRef&-&PulseWidth=0.12&-&Amplitude=0.05&-&PulsePeriod=0.5&-&SampMode=0&-&SamplePeriod=1&-&SampleWidth=10&-&FileName=E:\数据\刘金权\黄日娇\20260625\裸dpv_ReStart_ReStart_ReStart.cor&-&FilePath=E:\数据\刘金权\黄日娇\20260625\裸dpv_ReStart_ReStart_ReStart.cor&-&Comment=&-&IsFrq=True&-&SampleInter=0.1&-&SampleFrq=20&-&Number=0&-&EnableAxisType=True&-&AxisType=IvsE&-&OcpValue=-0.038111&-&IsStopEvent=False&-&IsStop=False&-&IsStopCheck=True&-&Frq=20&-&ExpTime=407.5&-&DevParam=VoltRange=2&|&WaitSecond=5&|&IsCurrAutoRange=True&|&IsVoltAutoRange=True&|&OnlyInc=True&|&AutoMinCurrRange=6&|&IsIR=False&|&IrValue=100&|&VoltRule=1&|&CurrRule=1&|&XiaoboqiEnable=True&|&Xianboqi=True&|&ManualCurRange=3&|&IsContainsUnit=False&|&LowFilter=True&|&DigitalSmoothMode=0&|&DigitLPFCount=5&|&LineFre=0&|&OcpState=False&|&DeltaMaxOcp=10&|&BaseIO=6D0A00&|&GNDMode=1&|&IsLowSpeedFilter=False&-&CellParam=Area=1&|&Density=7.8&|&Dangliang=28&|&Type=2&|&REValue=0.241&|&Temp=25&|&Stern=18&|&Enable=False&|&IsGetTemp=False&|&EnableSpeed=False&|&RotatingSpeed=3200&-&AuxDeviceParams=&-&AuxIO=230200&-&ExpType=ID_DPVStripping&-&ExtData=False&-&Issampling=True&-&EnablePause=False&-&IsSoftLvbo=False&-&Cycles=1&-&IsPreScan=True&-&IsPreScanOpen=False
+Open Circuit Potential (V):-0.038111
+
+Temperature(℃):   25
+  Begin Information:            Cell Information
+      Surface Area:           1
+      Density:                7.8
+      Weight:                 28
+      Polarity:               0
+      PolarityI:              0
+      Corrosion Unit Type:    1
+      Reference Type:         2
+      Reference Potential:    0.241
+      Reference User-Defined: 2
+      Stern-Geary:            18
+  End Information:              Cell Information
+  Begin Experiment:
+      Axes Type:              3
+  End Experiment:
+E(V)		i(A/cm^2)		T(s)
+End Comments
+-5.00000E-01	4.11875E-06	390.0000
+-4.80000E-01	4.17199E-06	390.5000
+-4.60000E-01	4.24045E-06	391.0000
+-4.40000E-01	4.30130E-06	391.5000
+-4.20000E-01	4.34691E-06	392.0000
+-4.00000E-01	4.36973E-06	392.5000
+-3.80000E-01	4.38494E-06	393.0000
+-3.60000E-01	4.40015E-06	393.5000
+-3.40000E-01	4.40776E-06	394.0000
+-3.20000E-01	4.42297E-06	394.5000
+-3.00000E-01	4.43819E-06	395.0000
+-2.80000E-01	4.46100E-06	395.5000
+-2.60000E-01	4.47622E-06	396.0000
+-2.40000E-01	4.49904E-06	396.5000
+-2.20000E-01	4.50664E-06	397.0000
+-2.00000E-01	4.52186E-06	397.5000
+-1.80000E-01	4.54465E-06	398.0000
+-1.60000E-01	4.58268E-06	398.5000
+-1.40000E-01	4.65113E-06	399.0000
+-1.20000E-01	4.70438E-06	399.5000
+-1.00000E-01	4.74241E-06	400.0000
+-8.00000E-02	4.74241E-06	400.5000
+-6.00000E-02	4.69677E-06	401.0000
+-4.00000E-02	4.62071E-06	401.5000
+-2.00000E-02	4.55986E-06	402.0000
+0.00000E+00	4.50661E-06	402.5000
+2.00000E-02	4.43816E-06	403.0000
+4.00000E-02	4.36209E-06	403.5000
+6.00000E-02	4.27842E-06	404.0000
+8.00000E-02	4.17193E-06	404.5000
+1.00000E-01	4.05026E-06	405.0000
+1.20000E-01	3.93616E-06	405.5000
+1.40000E-01	3.82967E-06	406.0000
+1.60000E-01	3.74600E-06	406.5000
+1.80000E-01	3.65473E-06	407.0000

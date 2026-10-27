@@ -1,0 +1,65 @@
+CORRW ASCII
+CorrTest for Windows: SN CS350H1907339  V5.6.1201.2  2.5H6.221207
+ID_DiffPulseVA
+Data:2026-08-26   Time:21:39:35
+ExpParmas:ExpType=ID_DiffPulseVA&-&InitialE=0.6&-&InitialVsOCP=vsRef&-&IncE=0.03&-&FinalE=-0.6&-&FinalVsOCP=vsRef&-&PulseWidth=0.05&-&Amplitude=0.08&-&PulsePeriod=0.2&-&SampMode=0&-&SamplePeriod=1&-&SampleWidth=10&-&FileName=E:\数据\刘金权\黄日娇\20260826\⑤dpv-MB_ReStart_ReStart_ReStart.cor&-&FilePath=E:\数据\刘金权\黄日娇\20260826\⑤dpv-MB_ReStart_ReStart_ReStart.cor&-&Comment=&-&IsFrq=True&-&SampleInter=0.02&-&SampleFrq=50&-&Number=0&-&EnableAxisType=True&-&AxisType=IvsE&-&OcpValue=-0.100522&-&IsStopEvent=False&-&IsStop=False&-&IsStopCheck=True&-&Frq=50&-&ExpTime=8.000001&-&DevParam=VoltRange=2&|&WaitSecond=5&|&IsCurrAutoRange=False&|&IsVoltAutoRange=True&|&OnlyInc=True&|&AutoMinCurrRange=6&|&IsIR=False&|&IrValue=100&|&VoltRule=1&|&CurrRule=1&|&XiaoboqiEnable=True&|&Xianboqi=True&|&ManualCurRange=4&|&IsContainsUnit=False&|&LowFilter=True&|&DigitalSmoothMode=0&|&DigitLPFCount=5&|&LineFre=0&|&OcpState=False&|&DeltaMaxOcp=10&|&BaseIO=6C0A00&|&GNDMode=1&|&IsLowSpeedFilter=False&-&CellParam=Area=1&|&Density=7.8&|&Dangliang=28&|&Type=2&|&REValue=0.241&|&Temp=25&|&Stern=18&|&Enable=True&|&IsGetTemp=False&|&EnableSpeed=False&|&RotatingSpeed=3200&-&AuxDeviceParams=&-&AuxIO=230200&-&ExpType=ID_DiffPulseVA&-&ExtData=False&-&Issampling=True&-&EnablePause=False&-&IsSoftLvbo=False&-&Cycles=1&-&IsPreScan=True&-&IsPreScanOpen=False
+Open Circuit Potential (V):-0.10052
+
+Temperature(℃):   25
+  Begin Information:            Cell Information
+      Surface Area:           1
+      Density:                7.8
+      Weight:                 28
+      Polarity:               0
+      PolarityI:              0
+      Corrosion Unit Type:    1
+      Reference Type:         2
+      Reference Potential:    0.241
+      Reference User-Defined: 2
+      Stern-Geary:            18
+  End Information:              Cell Information
+  Begin Experiment:
+      Axes Type:              3
+  End Experiment:
+E(V)		i(A/cm^2)		T(s)
+End Comments
+6.00000E-01	-1.68862E-06	0.0000
+5.70000E-01	-1.69623E-06	0.2000
+5.40000E-01	-1.73426E-06	0.4000
+5.10000E-01	-1.76468E-06	0.6000
+4.80000E-01	-1.79511E-06	0.8000
+4.50000E-01	-1.83314E-06	1.0000
+4.20000E-01	-1.86357E-06	1.2000
+3.90000E-01	-1.90160E-06	1.4000
+3.60000E-01	-1.93203E-06	1.6000
+3.30000E-01	-1.95484E-06	1.8000
+3.00000E-01	-1.95484E-06	2.0000
+2.70000E-01	-1.95484E-06	2.2000
+2.40000E-01	-1.93203E-06	2.4000
+2.10000E-01	-1.90160E-06	2.6000
+1.80000E-01	-1.85596E-06	2.8000
+1.50000E-01	-1.83314E-06	3.0000
+1.20000E-01	-1.81032E-06	3.2000
+9.00000E-02	-1.83314E-06	3.4000
+6.00001E-02	-1.86357E-06	3.6000
+3.00000E-02	-1.90921E-06	3.8000
+5.96046E-08	-1.99288E-06	4.0000
+-3.00000E-02	-2.12979E-06	4.2000
+-5.99999E-02	-2.25149E-06	4.4000
+-9.00000E-02	-2.46447E-06	4.6000
+-1.20000E-01	-2.86761E-06	4.8000
+-1.50000E-01	-3.52937E-06	5.0000
+-1.80000E-01	-4.51059E-06	5.2000
+-2.10000E-01	-5.85693E-06	5.4000
+-2.40000E-01	-7.34778E-06	5.6000
+-2.70000E-01	-8.77778E-06	5.8000
+-3.00000E-01	-9.88071E-06	6.0000
+-3.30000E-01	-1.05197E-05	6.2000
+-3.60000E-01	-1.06794E-05	6.4000
+-3.90000E-01	-1.04208E-05	6.6000
+-4.20000E-01	-9.91874E-06	6.8000
+-4.50000E-01	-9.35587E-06	7.0000
+-4.80000E-01	-8.84624E-06	7.2000
+-5.10000E-01	-8.48114E-06	7.4000
+-5.40000E-01	-8.35183E-06	7.6000
+-5.70000E-01	-8.24534E-06	7.8000

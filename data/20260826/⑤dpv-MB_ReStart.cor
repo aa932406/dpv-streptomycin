@@ -1,0 +1,85 @@
+CORRW ASCII
+CorrTest for Windows: SN CS350H1907339  V5.6.1201.2  2.5H6.221207
+ID_DiffPulseVA
+Data:2026-08-26   Time:21:36:28
+ExpParmas:ExpType=ID_DiffPulseVA&-&InitialE=0.6&-&InitialVsOCP=vsRef&-&IncE=0.02&-&FinalE=-0.6&-&FinalVsOCP=vsRef&-&PulseWidth=0.05&-&Amplitude=0.08&-&PulsePeriod=1&-&SampMode=0&-&SamplePeriod=1&-&SampleWidth=10&-&FileName=E:\数据\刘金权\黄日娇\20260826\⑤dpv-MB_ReStart.cor&-&FilePath=E:\数据\刘金权\黄日娇\20260826\⑤dpv-MB_ReStart.cor&-&Comment=&-&IsFrq=True&-&SampleInter=0.02&-&SampleFrq=50&-&Number=0&-&EnableAxisType=True&-&AxisType=IvsE&-&OcpValue=-0.131459&-&IsStopEvent=False&-&IsStop=False&-&IsStopCheck=True&-&Frq=50&-&ExpTime=60&-&DevParam=VoltRange=2&|&WaitSecond=5&|&IsCurrAutoRange=False&|&IsVoltAutoRange=True&|&OnlyInc=True&|&AutoMinCurrRange=6&|&IsIR=False&|&IrValue=100&|&VoltRule=1&|&CurrRule=1&|&XiaoboqiEnable=True&|&Xianboqi=True&|&ManualCurRange=4&|&IsContainsUnit=False&|&LowFilter=True&|&DigitalSmoothMode=0&|&DigitLPFCount=5&|&LineFre=0&|&OcpState=False&|&DeltaMaxOcp=10&|&BaseIO=6C0A00&|&GNDMode=1&|&IsLowSpeedFilter=False&-&CellParam=Area=1&|&Density=7.8&|&Dangliang=28&|&Type=2&|&REValue=0.241&|&Temp=25&|&Stern=18&|&Enable=True&|&IsGetTemp=False&|&EnableSpeed=False&|&RotatingSpeed=3200&-&AuxDeviceParams=&-&AuxIO=230200&-&ExpType=ID_DiffPulseVA&-&ExtData=False&-&Issampling=True&-&EnablePause=False&-&IsSoftLvbo=False&-&Cycles=1&-&IsPreScan=True&-&IsPreScanOpen=False
+Open Circuit Potential (V):-0.13146
+
+Temperature(℃):   25
+  Begin Information:            Cell Information
+      Surface Area:           1
+      Density:                7.8
+      Weight:                 28
+      Polarity:               0
+      PolarityI:              0
+      Corrosion Unit Type:    1
+      Reference Type:         2
+      Reference Potential:    0.241
+      Reference User-Defined: 2
+      Stern-Geary:            18
+  End Information:              Cell Information
+  Begin Experiment:
+      Axes Type:              3
+  End Experiment:
+E(V)		i(A/cm^2)		T(s)
+End Comments
+6.00000E-01	-1.49085E-06	0.0000
+5.80000E-01	-1.44522E-06	1.0000
+5.60000E-01	-1.43000E-06	2.0000
+5.40000E-01	-1.42240E-06	3.0000
+5.20000E-01	-1.41479E-06	4.0000
+5.00000E-01	-1.41479E-06	5.0000
+4.80000E-01	-1.42240E-06	6.0000
+4.60000E-01	-1.43761E-06	7.0000
+4.40000E-01	-1.45282E-06	8.0000
+4.20000E-01	-1.46804E-06	9.0000
+4.00000E-01	-1.48325E-06	10.0000
+3.80000E-01	-1.49846E-06	11.0000
+3.60000E-01	-1.52128E-06	12.0000
+3.40000E-01	-1.53649E-06	13.0000
+3.20000E-01	-1.54410E-06	14.0000
+3.00000E-01	-1.55931E-06	15.0000
+2.80000E-01	-1.55931E-06	16.0000
+2.60000E-01	-1.56692E-06	17.0000
+2.40000E-01	-1.56692E-06	18.0000
+2.20000E-01	-1.55171E-06	19.0000
+2.00000E-01	-1.54410E-06	20.0000
+1.80000E-01	-1.52889E-06	21.0000
+1.60000E-01	-1.51367E-06	22.0000
+1.40000E-01	-1.50607E-06	23.0000
+1.20000E-01	-1.49085E-06	24.0000
+1.00000E-01	-1.49846E-06	25.0000
+8.00000E-02	-1.50607E-06	26.0000
+6.00001E-02	-1.52128E-06	27.0000
+4.00000E-02	-1.53649E-06	28.0000
+2.00000E-02	-1.58213E-06	29.0000
+5.96046E-08	-1.62777E-06	30.0000
+-2.00000E-02	-1.73426E-06	31.0000
+-4.00000E-02	-1.80272E-06	32.0000
+-5.99999E-02	-1.93203E-06	33.0000
+-8.00000E-02	-1.97006E-06	34.0000
+-1.00000E-01	-2.13740E-06	35.0000
+-1.20000E-01	-2.37320E-06	36.0000
+-1.40000E-01	-2.69267E-06	37.0000
+-1.60000E-01	-3.11862E-06	38.0000
+-1.80000E-01	-3.64347E-06	39.0000
+-2.00000E-01	-4.29762E-06	40.0000
+-2.20000E-01	-5.08868E-06	41.0000
+-2.40000E-01	-5.91778E-06	42.0000
+-2.60000E-01	-6.73927E-06	43.0000
+-2.80000E-01	-7.49230E-06	44.0000
+-3.00000E-01	-8.09321E-06	45.0000
+-3.20000E-01	-8.51156E-06	46.0000
+-3.40000E-01	-8.72454E-06	47.0000
+-3.60000E-01	-8.76257E-06	48.0000
+-3.80000E-01	-8.60284E-06	49.0000
+-4.00000E-01	-8.34422E-06	50.0000
+-4.20000E-01	-8.00954E-06	51.0000
+-4.40000E-01	-7.63682E-06	52.0000
+-4.60000E-01	-7.27932E-06	53.0000
+-4.80000E-01	-6.97507E-06	54.0000
+-5.00000E-01	-6.72406E-06	55.0000
+-5.20000E-01	-6.54150E-06	56.0000
+-5.40000E-01	-6.42741E-06	57.0000
+-5.60000E-01	-6.36656E-06	58.0000
+-5.80000E-01	-6.36656E-06	59.0000

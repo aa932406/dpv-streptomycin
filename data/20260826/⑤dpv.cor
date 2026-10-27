@@ -1,0 +1,85 @@
+CORRW ASCII
+CorrTest for Windows: SN CS350H1907339  V5.6.1201.2  2.5H6.221207
+ID_DiffPulseVA
+Data:2026-08-26   Time:21:30:36
+ExpParmas:ExpType=ID_DiffPulseVA&-&InitialE=0.6&-&InitialVsOCP=vsRef&-&IncE=0.02&-&FinalE=-0.6&-&FinalVsOCP=vsRef&-&PulseWidth=0.05&-&Amplitude=0.08&-&PulsePeriod=0.2&-&SampMode=0&-&SamplePeriod=1&-&SampleWidth=10&-&FileName=E:\数据\刘金权\黄日娇\20260826\⑤dpv.cor&-&FilePath=E:\数据\刘金权\黄日娇\20260826\⑤dpv.cor&-&Comment=&-&IsFrq=True&-&SampleInter=0.02&-&SampleFrq=50&-&Number=0&-&EnableAxisType=True&-&AxisType=IvsE&-&OcpValue=0.070316&-&IsStopEvent=False&-&IsStop=False&-&IsStopCheck=True&-&Frq=50&-&ExpTime=12&-&DevParam=VoltRange=2&|&WaitSecond=5&|&IsCurrAutoRange=False&|&IsVoltAutoRange=True&|&OnlyInc=True&|&AutoMinCurrRange=6&|&IsIR=False&|&IrValue=100&|&VoltRule=1&|&CurrRule=1&|&XiaoboqiEnable=True&|&Xianboqi=True&|&ManualCurRange=4&|&IsContainsUnit=False&|&LowFilter=True&|&DigitalSmoothMode=0&|&DigitLPFCount=5&|&LineFre=0&|&OcpState=False&|&DeltaMaxOcp=10&|&BaseIO=6C0A00&|&GNDMode=1&|&IsLowSpeedFilter=False&-&CellParam=Area=1&|&Density=7.8&|&Dangliang=28&|&Type=2&|&REValue=0.241&|&Temp=25&|&Stern=18&|&Enable=True&|&IsGetTemp=False&|&EnableSpeed=False&|&RotatingSpeed=3200&-&AuxDeviceParams=&-&AuxIO=230200&-&ExpType=ID_DiffPulseVA&-&ExtData=False&-&Issampling=True&-&EnablePause=False&-&IsSoftLvbo=False&-&Cycles=1&-&IsPreScan=True&-&IsPreScanOpen=False
+Open Circuit Potential (V):0.070316
+
+Temperature(℃):   25
+  Begin Information:            Cell Information
+      Surface Area:           1
+      Density:                7.8
+      Weight:                 28
+      Polarity:               0
+      PolarityI:              0
+      Corrosion Unit Type:    1
+      Reference Type:         2
+      Reference Potential:    0.241
+      Reference User-Defined: 2
+      Stern-Geary:            18
+  End Information:              Cell Information
+  Begin Experiment:
+      Axes Type:              3
+  End Experiment:
+E(V)		i(A/cm^2)		T(s)
+End Comments
+6.00000E-01	-1.20942E-06	0.0000
+5.80000E-01	-1.16378E-06	0.2000
+5.60000E-01	-1.14096E-06	0.4000
+5.40000E-01	-1.11814E-06	0.6000
+5.20000E-01	-1.11814E-06	0.8000
+5.00000E-01	-1.10293E-06	1.0000
+4.80000E-01	-1.11053E-06	1.2000
+4.60000E-01	-1.11053E-06	1.4000
+4.40000E-01	-1.11053E-06	1.6000
+4.20000E-01	-1.11053E-06	1.8000
+4.00000E-01	-1.11814E-06	2.0000
+3.80000E-01	-1.11814E-06	2.2000
+3.60000E-01	-1.11814E-06	2.4000
+3.40000E-01	-1.11814E-06	2.6000
+3.20000E-01	-1.11814E-06	2.8000
+3.00000E-01	-1.11814E-06	3.0000
+2.80000E-01	-1.11814E-06	3.2000
+2.60000E-01	-1.11053E-06	3.4000
+2.40000E-01	-1.10293E-06	3.6000
+2.20000E-01	-1.11053E-06	3.8000
+2.00000E-01	-1.10293E-06	4.0000
+1.80000E-01	-1.10293E-06	4.2000
+1.60000E-01	-1.11053E-06	4.4000
+1.40000E-01	-1.11053E-06	4.6000
+1.20000E-01	-1.12575E-06	4.8000
+1.00000E-01	-1.14857E-06	5.0000
+8.00000E-02	-1.17139E-06	5.2000
+6.00001E-02	-1.20942E-06	5.4000
+4.00000E-02	-1.24745E-06	5.6000
+2.00000E-02	-1.29309E-06	5.8000
+5.96046E-08	-1.36155E-06	6.0000
+-2.00000E-02	-1.45282E-06	6.2000
+-4.00000E-02	-1.54410E-06	6.4000
+-5.99999E-02	-1.64298E-06	6.6000
+-8.00000E-02	-1.77990E-06	6.8000
+-1.00000E-01	-1.95484E-06	7.0000
+-1.20000E-01	-2.16782E-06	7.2000
+-1.40000E-01	-2.41883E-06	7.4000
+-1.60000E-01	-2.70788E-06	7.6000
+-1.80000E-01	-3.00453E-06	7.8000
+-2.00000E-01	-3.25554E-06	8.0000
+-2.20000E-01	-3.52937E-06	8.2000
+-2.40000E-01	-3.74235E-06	8.4000
+-2.60000E-01	-3.91730E-06	8.6000
+-2.80000E-01	-4.12267E-06	8.8000
+-3.00000E-01	-4.32043E-06	9.0000
+-3.20000E-01	-4.51820E-06	9.2000
+-3.40000E-01	-4.71597E-06	9.4000
+-3.60000E-01	-4.93655E-06	9.6000
+-3.80000E-01	-5.16475E-06	9.8000
+-4.00000E-01	-5.40054E-06	10.0000
+-4.20000E-01	-5.62113E-06	10.2000
+-4.40000E-01	-5.84932E-06	10.4000
+-4.60000E-01	-6.05469E-06	10.6000
+-4.80000E-01	-6.24485E-06	10.8000
+-5.00000E-01	-6.42741E-06	11.0000
+-5.20000E-01	-6.63278E-06	11.2000
+-5.40000E-01	-6.83815E-06	11.4000
+-5.60000E-01	-7.05874E-06	11.6000
+-5.80000E-01	-7.31736E-06	11.8000
