@@ -7,6 +7,7 @@
 #      sudo bash deploy.sh --dir /srv/dpv        # 换安装目录
 #      sudo bash deploy.sh --web-port 8080       # 换对外端口
 #      sudo bash deploy.sh --no-systemd          # 不用 systemd，直接 nohup 起
+#      sudo bash deploy.sh --no-demo             # 不生成合成演示数据
 #
 #  它会做这些事：
 #    1. 检查/安装 python3、venv、nodejs(>=18)
@@ -27,6 +28,7 @@ WEB_PORT="3000"
 API_PORT="8000"
 SERVICE_USER=""
 USE_SYSTEMD=1
+WITH_DEMO=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,6 +37,7 @@ while [ $# -gt 0 ]; do
     --api-port)   API_PORT="$2"; shift 2 ;;
     --user)       SERVICE_USER="$2"; shift 2 ;;
     --no-systemd) USE_SYSTEMD=0; shift ;;
+    --no-demo)    WITH_DEMO=0; shift ;;
     -h|--help)    sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "未知参数: $1（用 --help 看用法）" >&2; exit 1 ;;
   esac
@@ -124,6 +127,13 @@ say "创建 venv 并安装 Python 依赖"
 sudo -u "$SERVICE_USER" python3 -m venv "$APP_DIR/.venv"
 sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/pip" install --upgrade pip -q
 sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" -q
+
+if [ "$WITH_DEMO" -eq 1 ] && [ ! -d "$APP_DIR/data/demo" ]; then
+  say "生成合成演示数据（data/demo + data/demo_batches，可在界面里删掉）"
+  cd "$APP_DIR"
+  sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/python" scripts/make_demo_data.py --mode single >/dev/null || warn "单批次演示数据生成失败（不影响真实数据）"
+  sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/python" scripts/make_demo_data.py --mode batches >/dev/null || warn "多批次演示数据生成失败（不影响真实数据）"
+fi
 
 # --- 4. 前端 ---------------------------------------------------------------
 say "安装前端依赖并构建（API_BASE=http://127.0.0.1:$API_PORT，构建时写死）"
