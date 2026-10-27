@@ -23,6 +23,8 @@
 # ============================================================================
 set -euo pipefail
 
+ORIG_ARGS=("$@")
+
 APP_DIR="/opt/dpv"
 WEB_PORT="3000"
 API_PORT="8000"
@@ -52,7 +54,7 @@ die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 # --- 0. root ---------------------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
   say "需要 root 权限，正在用 sudo 重新执行"
-  exec sudo bash "$0" "$@"
+  exec sudo bash "$0" "${ORIG_ARGS[@]}"
 fi
 
 if [ -z "$SERVICE_USER" ]; then
@@ -138,10 +140,11 @@ fi
 # --- 4. 前端 ---------------------------------------------------------------
 say "安装前端依赖并构建（API_BASE=http://127.0.0.1:$API_PORT，构建时写死）"
 cd "$APP_DIR/web"
-if [ -f package-lock.json ]; then
-  sudo -u "$SERVICE_USER" npm ci --include=dev
+if [ -f package-lock.json ] && sudo -u "$SERVICE_USER" npm ci --include=dev --no-audit --no-fund; then
+  :
 else
-  sudo -u "$SERVICE_USER" npm install --include=dev
+  warn "package-lock.json 与 package.json 不同步（或没有 lock），改用 npm install"
+  sudo -u "$SERVICE_USER" npm install --include=dev --no-audit --no-fund
 fi
 sudo -u "$SERVICE_USER" env API_BASE="http://127.0.0.1:$API_PORT" NODE_ENV=production npm run build
 
