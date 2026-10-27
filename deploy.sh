@@ -130,6 +130,10 @@ sudo -u "$SERVICE_USER" python3 -m venv "$APP_DIR/.venv"
 sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/pip" install --upgrade pip -q
 sudo -u "$SERVICE_USER" "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" -q
 
+if ! "$APP_DIR/.venv/bin/python" -c 'import fastapi, uvicorn' >/dev/null 2>&1; then
+  die "Python 依赖不完整：requirements.txt 必须包含 fastapi 与 uvicorn，否则 API 起不来（现在会一直重启）"
+fi
+
 if [ "$WITH_DEMO" -eq 1 ] && [ ! -d "$APP_DIR/data/demo" ]; then
   say "生成合成演示数据（data/demo + data/demo_batches，可在界面里删掉）"
   cd "$APP_DIR"
