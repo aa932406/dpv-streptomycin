@@ -234,6 +234,8 @@ API 只听 `127.0.0.1:8000`，浏览器只跟 Next 的 3000 说话 —— **对�
 | **软件** | `scripts/`、`server/`、`web/`、`deploy.sh`、`*.bat`、`requirements.txt` | **GNU GPL v3.0**（[LICENSE](LICENSE)） |
 | **文档与数据** | `docs/`、`data/`（含全部 `.cor`）、`metadata/`、`out/`、本 README | **CC BY 4.0**（[LICENSE-DOCS.md](LICENSE-DOCS.md)） |
 
+版权声明与「如何应用这些条款」见 [NOTICE](NOTICE)。`LICENSE` 是 GPL-3.0 的完整原文（保持原样，便于 GitHub 与其他工具自动识别）。
+
 GPL-3.0 意味着：任何人分发本软件的修改版，必须同样以 GPL-3.0 开放源代码。
 CC BY 4.0 意味着：文档和数据可以复制、再分发、修改、商用，**但必须署名**并说明是否做过修改。
 
