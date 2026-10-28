@@ -78,13 +78,14 @@
 一个镜像装好前端 + 后端 + Python 依赖，服务器只要装了 Docker：
 
 ```bash
-git clone https://github.com/aa932406/dpv-streptomycin.git
-cd dpv-streptomycin
-
-docker build -t dpv-streptomycin:latest .
+# 现成的镜像（1.69 GB，纯 CPU），不用编译
+docker pull ghcr.io/aa932406/dpv-streptomycin:latest
 docker run -d --name dpv --restart unless-stopped \
   -p 3000:3000 -v dpv_data:/app/data dpv-streptomycin:latest
 ```
+
+包是私有的，第一次拉要 `docker login ghcr.io -u aa932406`（PAT 勾 read:packages）。
+想自己构建：`git clone` 后 `docker build -t dpv-streptomycin:latest .`，两条路效果一样。
 
 打开 `http://<服务器IP>:3000`。**不需要 GPU**：整套东西是纯 CPU 的（numpy / scipy /
 scikit-learn / matplotlib + CPU 版 xgboost），没有 CUDA、没有 torch，一张 2 核 2G 的机器就够。

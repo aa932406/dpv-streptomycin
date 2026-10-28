@@ -9,7 +9,33 @@ numpy / scipy / scikit-learn / matplotlib 全是 CPU 轮子，xgboost 用的也�
 
 ---
 
-## 1. 最快的一条路：服务器上直接构建
+## 1. 最快的一条路：直接拉已经构建好的镜像
+
+现成的镜像已经推在 GitHub 的镜像仓库（GHCR）里，服务器**不需要 git、不需要编译**：
+
+```bash
+docker pull ghcr.io/aa932406/dpv-streptomycin:latest
+docker run -d --name dpv --restart unless-stopped \
+  -p 3000:3000 -v dpv_data:/app/data -v dpv_models:/app/models \
+  ghcr.io/aa932406/dpv-streptomycin:latest
+```
+
+浏览器打开 `http://<服务器IP>:3000` 就有界面（第一次启动自动生成演示数据）。
+
+这个包现在是**私有**的，拉之前要先登录一次：
+
+```bash
+docker login ghcr.io -u aa932406          # 密码填 GitHub PAT，勾 read:packages 就够
+```
+
+嫌麻烦就把它改成公开：GitHub → 你的 Packages → dpv-streptomycin →
+Package settings → Change visibility → Public，之后 `docker pull` 不用登录。
+
+镜像大小 1.69 GB（amd64），解压后约 3.5 GB，拉取时间取决于带宽。
+
+---
+
+## 1b. 或者：服务器上自己构建
 
 服务器只要装了 Docker（>=20.10）和 git：
 
@@ -72,6 +98,10 @@ docker run -d --name dpv --restart unless-stopped -p 3000:3000 \
 ```
 
 私有仓库记得在服务器上先 `docker login`。
+
+**这个仓库已经推过了**：`ghcr.io/aa932406/dpv-streptomycin:latest`，
+digest `sha256:7f69faea824a28a7708ed0133a486e47760625cbe287667c62e316451eaa863e`。
+以后改了代码只要重新 `docker build` + `docker push` 同一个 tag，服务器 `docker pull` 就更新了。
 
 ---
 
