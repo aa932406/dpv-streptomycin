@@ -6,6 +6,7 @@ import { getRegression } from '@/lib/api'
 import type { Regression } from '@/lib/types'
 import { Badge, Card, CardBody, HowTo, Note, SectionTitle, StatCard, Table, Td } from '@/components/ui'
 import { ImportanceBars, LearnCurve, ParityChart } from '@/components/charts'
+import ModelStudio from '@/components/ModelStudio'
 
 function rpdTone(rpd: number): 'ok' | 'info' | 'warn' | 'bad' {
   if (rpd >= 3) return 'ok'
@@ -35,9 +36,24 @@ export default function PredictPage() {
     // drop the previous folder's result, otherwise the page keeps showing it
     // while the new (slow) regression request is still running
     setReg(null)
-    getRegression(folder, order, refFrac, technique)
-      .then((r) => { if (alive) { setReg(r); setLoading(false) } })
-      .catch((e) => { if (alive) { setError(String(e)); setLoading(false) } })
+    // Next's rewrite proxy drops any single request longer than 30 s, and the
+    // first regression call can take longer than that on a loaded box. The API
+    // keeps computing and fills its cache, so a retry usually answers in ms.
+    ;(async () => {
+      let last: unknown = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await getRegression(folder, order, refFrac, technique)
+          if (alive) { setReg(r); setLoading(false) }
+          return
+        } catch (e) {
+          last = e
+          if (!alive) return
+          await new Promise((res) => setTimeout(res, 1500))
+        }
+      }
+      if (alive) { setError(String(last)); setLoading(false) }
+    })()
     return () => { alive = false }
   }, [folder, order, refFrac, technique])
 
@@ -59,6 +75,7 @@ export default function PredictPage() {
     return (
       <div className="space-y-4">
         {head}
+        {folder ? <ModelStudio folder={folder} order={order} refFrac={refFrac} /> : null}
         <Note tone="info" title="正在训练模型">
           逐个拟合全部候选模型并做嵌套交叉验证（线性回归 / 岭回归 / PLS / SVR-RBF / SVR-线性核 /
           随机森林 / 梯度提升 / XGBoost / BP-ANN / 高斯过程），首次约 20 秒，之后走缓存。
@@ -66,13 +83,22 @@ export default function PredictPage() {
       </div>
     )
   }
-  if (error) return <div className="space-y-4">{head}<Note tone="bad" title="后端没有响应">{error}</Note></div>
+  if (error) {
+    return (
+      <div className="space-y-4">
+        {head}
+        {folder ? <ModelStudio folder={folder} order={order} refFrac={refFrac} /> : null}
+        <Note tone="bad" title="后端没有响应">{error}</Note>
+      </div>
+    )
+  }
   if (!reg) return null
 
   if (reg.error) {
     return (
       <div className="space-y-4">
         {head}
+        {folder ? <ModelStudio folder={folder} order={order} refFrac={refFrac} /> : null}
         <Note tone="warn" title="这个文件夹还训练不出预测模型">{reg.error}</Note>
         <Card>
           <CardBody className="space-y-2 text-[12.5px] leading-relaxed text-[#475467]">
@@ -104,6 +130,8 @@ export default function PredictPage() {
   return (
     <div className="space-y-4">
       {head}
+
+        {folder ? <ModelStudio folder={folder} order={order} refFrac={refFrac} /> : null}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

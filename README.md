@@ -14,10 +14,11 @@
 │   └── cd36_ngml/             外部数据集（miralab-ai/biosensors-AI，60 条 CD36 曲线，12 个浓度×5 重复）
 ├── web/                       ★ Web 前端（Next.js 15 + Tailwind 4 + recharts）
 │   ├── app/(main)/            八个页面：数据 / 结论 / 曲线 / 统计 / 校准 / 建模 / 预测 / 导出
-│   ├── components/            顶栏、底部 dock、图表、卡片
+│   ├── components/            顶栏、底部 dock、图表、卡片、ModelStudio（训练/仓库/调用）
 │   └── lib/                   API 客户端、类型、格式化工具
 ├── server/
 │   └── app.py                 ★ FastAPI 后端（包 analysis_core.py），/api/analyse /api/regression /api/metadata /api/report
+│                              ↳ 模型：/api/train（后台任务） /api/train/{id} /api/models /api/models/{n}/download /api/predict
 ├── scripts/                   所有代码
 │   ├── app.py                 Streamlit 版界面（旧版，run_web_streamlit.bat 启动）
 │   ├── dump_ui_json.py        把分析结果导成前端要的 JSON（API 契约）
@@ -30,7 +31,7 @@
 │   ├── ratiometric_calibration.py  比值法 I_MB/I_ref + LOD/LOQ  ← 推荐
 │   ├── demo_ml.py             数据泄漏 / 置换检验的教学演示
 │   ├── cross_batch.py         跨批次合并分析（方差来源 / 重复性 / 留一批次迁移）
-│   ├── ml_models.py           ★ 定量预测模型（9 个模型 × 2 套输入，R²/RMSE/RPD，留一电极）
+│   ├── ml_models.py           ★ 定量预测模型（9 个算法 × 2 套输入，装了 xgboost 时 10 个；R²/RMSE/RPD，留一电极）
 │   ├── train_model.py         ★ 训练一个能存盘的模型 → models/*.joblib + 模型卡 .json
 │   ├── predict_with_model.py  ★ 加载模型，读新样品的 .cor → 检出/未检出 + 浓度 + 区间
 │   ├── cv_peaks.py            读 CV 的 .cor：分扫描支、找峰、给 ipa/epc/ΔEp

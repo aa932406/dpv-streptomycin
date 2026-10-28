@@ -249,3 +249,66 @@ export type AreaFit = {
   resid?: { v_mV_s: number; ip_uA: number; pred_uA: number }[]
   warnings?: string[]
 }
+
+export type SavedModel = {
+  name: string
+  file: string
+  format: string
+  size_kb: number
+  created?: string
+  target?: string
+  model?: string
+  input?: string
+  r2?: number
+  rpd?: number
+  factor?: number
+  n_standards?: number
+  n_levels?: number
+  n_units?: number
+  range_M?: number[]
+  has_detection?: boolean
+  download: string
+}
+
+export type TrainResult = {
+  ok: boolean
+  name: string
+  job: string
+  log: string[]
+  download: string
+  model: SavedModel
+  card?: Record<string, unknown>
+}
+
+export type TrainJob = {
+  job_id: string
+  state: 'running' | 'done' | 'error'
+  elapsed?: number
+  error?: string
+  ok?: boolean
+  name?: string
+  job?: string
+  log?: string[]
+  download?: string
+  model?: SavedModel
+}
+
+export type PredictRow = {
+  file: string
+  detected: boolean | null
+  pred_M: number
+  lo_M: number
+  hi_M: number
+  group?: string
+  I_MB?: number
+  I_ref?: number
+  ratio?: number
+}
+
+export type PredictResult = {
+  ok: boolean
+  model: SavedModel
+  rows: PredictRow[]
+  bad: { file: string; error: string }[]
+  log: string[]
+}

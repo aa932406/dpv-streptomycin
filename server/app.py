@@ -17,6 +17,9 @@ import base64
 import io
 import json
 import sys
+import threading
+import time
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -31,6 +34,8 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 import area_calc  # noqa: E402
 import cv_peaks  # noqa: E402
 import dump_ui_json as dump  # noqa: E402
+import predict_with_model as pm  # noqa: E402
+import train_model as tm  # noqa: E402
 
 DATA_DIR = PROJECT / "data"
 
@@ -503,3 +508,198 @@ def api_report(
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="%s"' % fn},
     )
+
+# --------------------------------------------------------------------- models
+# The browser trains, lists, downloads and applies models through these four
+# endpoints.  Nothing here is analysis logic: train_model.py / predict_with_model.py
+# own it, so the CLI and the web UI can never disagree about what a model is.
+MODELS_DIR = PROJECT / "models"
+
+
+def _model_path(name: str) -> Path:
+    """Resolve models/<name>.joblib or .pkl, refusing anything that walks out."""
+    base = str(name or "").strip()
+    if not base or base != Path(base).name or base.startswith("."):
+        raise HTTPException(400, "bad model name")
+    for ext in (".joblib", ".pkl"):
+        p = (MODELS_DIR / (base + ext)).resolve()
+        if str(p).startswith(str(MODELS_DIR.resolve())) and p.is_file():
+            return p
+    raise HTTPException(404, "no such model: %s" % base)
+
+
+def _model_row(path: Path) -> dict:
+    card = {}
+    j = path.with_suffix(".json")
+    if j.is_file():
+        try:
+            card = json.loads(j.read_text(encoding="utf-8"))
+        except Exception:                          # noqa: BLE001
+            card = {}
+    cv = card.get("cv") or {}
+    tr = card.get("train") or {}
+    return {
+        "name": path.stem,
+        "file": path.name,
+        "format": path.suffix.lstrip("."),
+        "size_kb": round(path.stat().st_size / 1024, 1),
+        "created": card.get("created"),
+        "target": card.get("target"),
+        "model": card.get("model"),
+        "input": card.get("input"),
+        "r2": cv.get("r2"),
+        "rpd": cv.get("rpd"),
+        "factor": cv.get("factor"),
+        "n_standards": tr.get("n_standards"),
+        "n_levels": tr.get("n_levels"),
+        "n_units": tr.get("n_units"),
+        "range_M": tr.get("range_M"),
+        "has_detection": bool(card.get("detection")),
+        "download": "/api/models/%s/download" % path.stem,
+    }
+
+
+@app.get("/api/models")
+def api_models():
+    rows = []
+    if MODELS_DIR.is_dir():
+        files = [p for p in MODELS_DIR.iterdir() if p.suffix in (".joblib", ".pkl")]
+        for p in sorted(files, key=lambda q: q.stat().st_mtime, reverse=True):
+            try:
+                rows.append(_model_row(p))
+            except OSError:
+                continue
+    return {"models": rows, "dir": str(MODELS_DIR)}
+
+
+_JOBS: dict[str, dict] = {}
+
+
+def _run_train_job(job_id: str, params: dict) -> None:
+    job = _JOBS[job_id]
+    try:
+        res = tm.train(**params)
+        job["result"] = {
+            "ok": True,
+            "name": res["name"],
+            "job": res["job"],
+            "log": res["log"],
+            "download": "/api/models/%s/download" % res["name"],
+            "model": _model_row(Path(res["job"])),
+        }
+        job["state"] = "done"
+    except RuntimeError as exc:                     # "nothing to train" is not a crash
+        job["state"] = "error"
+        job["error"] = str(exc)
+    except Exception as exc:                        # noqa: BLE001
+        job["state"] = "error"
+        job["error"] = "%s: %s" % (type(exc).__name__, exc)
+    finally:
+        job["finished"] = time.time()
+
+
+@app.post("/api/train")
+def api_train(body: dict):
+    """Start training in the background; return a job id immediately.
+
+    Training takes tens of seconds to minutes on a busy machine, and Next's
+    rewrite proxy drops any single request that runs longer than 30 s
+    ("socket hang up" -> 500).  So the work happens in a thread and the browser
+    polls /api/train/{id}, whose answers are sub-second.
+    """
+    folder = (body.get("folder") or "").strip()
+    if not folder:
+        raise HTTPException(400, "need {folder}")
+    _folder(folder)                                 # validates + 404s
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    for k, v in list(_JOBS.items()):                # keep the registry small
+        if v.get("finished") and now - v["finished"] > 3600:
+            _JOBS.pop(k, None)
+    job_id = uuid.uuid4().hex[:12]
+    params = dict(
+        data=folder,
+        mode=body.get("mode") or "electrode",
+        input=body.get("input") or "auto",
+        model=body.get("model") or "auto",
+        order=int(body.get("order") or 4),
+        ref_frac=float(body.get("ref_frac") or 0.35),
+        target=body.get("target") or "链霉素",
+        seed=int(body.get("seed") or 0),
+        out=str(MODELS_DIR),
+        fmt="pkl" if body.get("format") == "pkl" else "joblib",
+    )
+    _JOBS[job_id] = {"id": job_id, "state": "running", "started": now, "params": params}
+    threading.Thread(target=_run_train_job, args=(job_id, params), daemon=True).start()
+    return {"job_id": job_id, "state": "running"}
+
+
+@app.get("/api/train/{job_id}")
+def api_train_status(job_id: str):
+    job = _JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(404, "no such job: %s" % job_id)
+    out = {"job_id": job["id"], "state": job["state"],
+           "elapsed": round(time.time() - job["started"], 1)}
+    if job.get("error"):
+        out["error"] = job["error"]
+    if job.get("result"):
+        out.update(job["result"])
+    return out
+
+
+@app.get("/api/models/{name}/download")
+def api_model_download(name: str):
+    p = _model_path(name)
+    return Response(
+        content=p.read_bytes(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="%s"' % p.name},
+    )
+
+
+@app.delete("/api/models/{name}")
+def api_model_delete(name: str):
+    p = _model_path(name)
+    for q in (p, p.with_suffix(".json")):
+        try:
+            q.unlink()
+        except OSError:
+            pass
+    return {"ok": True, "deleted": p.stem}
+
+
+@app.post("/api/predict")
+def api_predict(body: dict):
+    """Apply a saved model to uploaded .cor files (bytes in, table out)."""
+    name = (body.get("model") or "").strip()
+    if not name:
+        raise HTTPException(400, "need {model, files[]}")
+    path = _model_path(name)
+    items = []
+    for f in (body.get("files") or [])[:200]:
+        fn = Path(str(f.get("name") or "upload.cor")).name
+        try:
+            raw = base64.b64decode(f.get("b64") or "")
+        except Exception:                          # noqa: BLE001
+            continue
+        if raw:
+            items.append((fn, raw))
+    if not items:
+        raise HTTPException(400, "没有收到任何文件")
+    try:
+        res = pm.predict(path, items)
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:                       # noqa: BLE001
+        raise HTTPException(500, "%s: %s" % (type(exc).__name__, exc))
+    card = res["card"]
+    return {
+        "ok": True,
+        "model": _model_row(path),
+        "card": card,
+        "rows": res["rows"],
+        "bad": res["bad"],
+        "log": res["log"],
+    }
+

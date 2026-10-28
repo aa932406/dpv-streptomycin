@@ -1,4 +1,4 @@
-import type { Analysis, AreaFit, Electrode, PaperTable, Regression } from './types'
+import type { Analysis, AreaFit, Electrode, PaperTable, PredictResult, Regression, SavedModel, TrainJob, TrainResult } from './types'
 
 export type FolderInfo = { id: string; label: string; n_files: number; is_demo?: boolean }
 
@@ -85,3 +85,31 @@ export const saveElectrode = (body: {
   method: string
   detail?: unknown
 }) => post<{ ok: boolean; electrode: Electrode }>('/api/electrode', body)
+
+// ---------------------------------------------------------------- models
+export const listModels = () => j<{ models: SavedModel[]; dir: string }>('/api/models')
+
+export const trainModel = (body: {
+  folder: string
+  order?: number
+  ref_frac?: number
+  format?: 'joblib' | 'pkl'
+  target?: string
+  model?: string
+  input?: 'auto' | 'curves' | 'features'
+  mode?: 'electrode' | 'batch'
+}) => post<{ job_id: string; state: string }>('/api/train', body)
+
+/** Training runs in a background job: poll this until state is done or error. */
+export const trainStatus = (jobId: string) => j<TrainJob & TrainResult>('/api/train/' + encodeURIComponent(jobId))
+
+export const deleteModel = async (name: string): Promise<{ ok: boolean }> => {
+  const r = await fetch('/api/models/' + encodeURIComponent(name), { method: 'DELETE' })
+  if (!r.ok) throw new Error((await r.text()) || r.statusText)
+  return (await r.json()) as { ok: boolean }
+}
+
+export const predictSamples = (model: string, files: { name: string; b64: string }[]) =>
+  post<PredictResult>('/api/predict', { model, files })
+
+export const modelDownloadUrl = (name: string) => '/api/models/' + encodeURIComponent(name) + '/download'
