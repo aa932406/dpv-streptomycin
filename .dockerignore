@@ -1,0 +1,24 @@
+# 构建镜像时不要往上下文里塞的东西
+.git
+.gitignore
+.venv
+node_modules
+web/node_modules
+web/.next
+out
+logs
+models
+data
+metadata/*.csv.tmp
+__pycache__
+**/__pycache__
+*.pyc
+*.log
+.instabox_key
+.env
+matplotlib-*
+pip-*
+docs/images
+*.wmf
+*.xlsx
+.streamlit

@@ -73,7 +73,25 @@
 
 ## 快速开始
 
-### 方式一：网页界面（推荐，零命令行）
+### 方式一：Docker（服务器 / 长期部署）
+
+一个镜像装好前端 + 后端 + Python 依赖，服务器只要装了 Docker：
+
+```bash
+git clone https://github.com/aa932406/dpv-streptomycin.git
+cd dpv-streptomycin
+
+docker build -t dpv-streptomycin:latest .
+docker run -d --name dpv --restart unless-stopped \
+  -p 3000:3000 -v dpv_data:/app/data dpv-streptomycin:latest
+```
+
+打开 `http://<服务器IP>:3000`。**不需要 GPU**：整套东西是纯 CPU 的（numpy / scipy /
+scikit-learn / matplotlib + CPU 版 xgboost），没有 CUDA、没有 torch，一张 2 核 2G 的机器就够。
+离线服务器用 `docker save | gzip` 拷过去，或者推到镜像仓库让服务器 `docker pull`。
+细节见 [docs/部署说明_Docker.md](docs/部署说明_Docker.md)。
+
+### 方式二：网页界面（Windows 双击，零命令行）
 
 ```bash
 git clone https://github.com/aa932406/dpv-streptomycin.git
@@ -96,7 +114,7 @@ cd web && npm run start &                                    # 前端 → http:/
 数据在「**数据**」页填：浓度 / 批次 / 标签三种填法直接写在表头和图例里。一批几十个样品不用一行行改 ——
 「按分组全选」「从文件名提取（正则 + 单位换算）」「粘贴整列」三种批量方式，改完点保存即可。
 
-### 方式二：命令行 / 当库用
+### 方式三：命令行 / 当库用
 
 ```bash
 python scripts/dpv_pipeline.py --data data/20261010     # 统计 + 出图 → out/20261010/
@@ -115,7 +133,7 @@ row, y, icorr = analyse_trace("sample.cor", open("sample.cor","rb").read())
 print(row["ratio"], row["I_MB"], row["I_ref"])
 ```
 
-### 方式三：HTTP API
+### 方式四：HTTP API
 
 ```bash
 curl "http://127.0.0.1:8000/api/analyse?folder=20261010"     # 全部结果（JSON）

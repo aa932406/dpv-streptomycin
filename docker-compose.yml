@@ -1,0 +1,25 @@
+# docker compose up -d --build
+# 浏览器打开 http://<服务器IP>:3000
+services:
+  dpv:
+    build: .
+    image: dpv-streptomycin:latest
+    container_name: dpv
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # 真实数据放这里：/var/lib/dpv/data/20261101/*.cor
+      # 界面里保存的 metadata.csv 也在这里
+      - dpv_data:/app/data
+      - dpv_models:/app/models
+    environment:
+      # 单容器内是 127.0.0.1，不要改；只有拆成两个容器时才需要指向 api 服务名
+      - WEB_PORT=3000
+      - API_PORT=8000
+    # 纯 CPU，不需要 GPU。给个上限免得和别的服务抢内存
+    mem_limit: 2g
+
+volumes:
+  dpv_data:
+  dpv_models:

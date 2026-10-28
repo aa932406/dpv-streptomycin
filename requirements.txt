@@ -9,4 +9,7 @@ python-docx>=1.0
 
 # 可选：装上之后「预测」页的模型表会多一行 XGBoost。
 # 装不上也不影响其它模型（代码里有 import 保护，缺了就自动跳过）。
-xgboost>=2.0
+#
+# 上限卡在 3.0 以下：xgboost 3.x 的 PyPI 轮子依赖 nvidia-nccl-cu13（约 305 MB），
+# 那是给 GPU 用的，纯 CPU 的服务器装它只是白占空间。2.x 轮子是纯 CPU 的。
+xgboost>=2.0,<3
