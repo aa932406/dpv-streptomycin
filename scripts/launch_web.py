@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -143,6 +144,44 @@ def newest_mtime(paths: list[Path]) -> float:
     return best
 
 
+def missing_packages() -> list[str]:
+    """Dependencies listed in package.json that are not actually in node_modules.
+
+    Checking only "does node_modules exist" is how a project breaks after someone
+    adds a dependency: the folder is there, the new package is not, and the build
+    dies on "Module not found: Can't resolve '@radix-ui/react-slot'".
+    """
+    pkg = json.loads((WEB / "package.json").read_text("utf-8"))
+    want = list(pkg.get("dependencies", {})) + list(pkg.get("devDependencies", {}))
+    nm = WEB / "node_modules"
+    return [d for d in want if not (nm / d / "package.json").exists()]
+
+
+DEPS_STAMP = WEB / "node_modules" / ".dpv-deps.json"
+
+
+def deps_hash() -> str:
+    """Fingerprint of the dependency lists, so a changed package.json is detected
+    without trusting file mtimes (they change on every copy, unzip or git checkout)."""
+    pkg = json.loads((WEB / "package.json").read_text("utf-8"))
+    blob = json.dumps(
+        {"d": pkg.get("dependencies", {}), "dev": pkg.get("devDependencies", {})},
+        sort_keys=True,
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def node_modules_stale() -> bool:
+    if not (WEB / "node_modules").exists():
+        return True
+    if missing_packages():
+        return True
+    try:
+        return json.loads(DEPS_STAMP.read_text("utf-8")).get("hash") != deps_hash()
+    except Exception:
+        return True
+
+
 def ensure_web(check_only: bool = False) -> None:
     if not (WEB / "package.json").exists():
         fail("web/package.json not found -- is the folder complete?")
@@ -151,12 +190,18 @@ def ensure_web(check_only: bool = False) -> None:
             "npm not found. Install Node.js 20 or newer from https://nodejs.org/ "
             "and reopen the terminal."
         )
-    if not (WEB / "node_modules").exists():
+    if node_modules_stale():
+        miss = missing_packages()
+        note = ""
+        if miss:
+            head = ", ".join(miss[:4]) + (" ..." if len(miss) > 4 else "")
+            note = " -- %d package(s) from package.json are not installed: %s" % (len(miss), head)
         if check_only:
-            say("[3/5] node_modules missing -- would run npm install")
+            say("[3/5] frontend dependencies need installing" + note)
             return
-        say("[3/5] Installing frontend dependencies (about 1 min)")
+        say("[3/5] Installing frontend dependencies (about 1 min)" + note)
         run(npm_run("install"), cwd=WEB)
+        DEPS_STAMP.write_text(json.dumps({"hash": deps_hash(), "at": time.strftime("%Y-%m-%d %H:%M:%S")}), "utf-8")
 
     build_id = WEB / ".next" / "BUILD_ID"
     srcs = [WEB / "app", WEB / "components", WEB / "lib", WEB / "next.config.ts",

@@ -10,6 +10,9 @@ const API_BASE = process.env.API_BASE || 'http://127.0.0.1:8000'
 const standalone = process.env.NEXT_OUTPUT === 'standalone'
 
 const nextConfig: NextConfig = {
+  // Pin the tracing root to web/. Without this, a stray package-lock.json in a parent
+  // folder makes Next guess the repo root and warn on every build.
+  outputFileTracingRoot: process.cwd(),
   ...(standalone ? { output: 'standalone' as const } : {}),
   async rewrites() {
     return [{ source: '/api/:path*', destination: API_BASE + '/api/:path*' }]

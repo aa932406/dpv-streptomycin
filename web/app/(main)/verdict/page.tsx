@@ -1,9 +1,16 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, FolderSearch, Gauge, Users, Layers, ScanLine, XCircle } from 'lucide-react'
+import Link from 'next/link'
+import {
+  AlertTriangle, ArrowRight, CheckCircle2, Gauge, Layers, ScanLine, Users, XCircle,
+} from 'lucide-react'
 import { useFolder } from '@/lib/folder-context'
-import { Badge, Card, KeyVal, Loading, Note, SectionTitle, StatCard } from '@/components/ui'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/common/layout/PageHeader'
+import { StatCard } from '@/components/common/layout/StatCard'
 import { CurvesChart, Legend } from '@/components/charts'
+import { NoCurves, PageError, PageLoading } from '@/components/PageState'
 import { fmtConc, fmtNum, fmtP } from '@/lib/utils'
 
 function explainFitError(e: string): { title: string; detail: string } {
@@ -23,91 +30,148 @@ function explainFitError(e: string): { title: string; detail: string } {
   return { title: '校准不可用', detail: e }
 }
 
-export default function VerdictPage() {
-  const { data, loading, error, folder } = useFolder()
+function Panel({ title, sub, children, className }: {
+  title: string
+  sub?: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section className={'rounded-[20px] bg-muted p-4 ' + (className || '')}>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2">
+        <h2 className="text-sm font-medium">{title}</h2>
+        {sub ? <span className="text-[11px] text-muted-foreground">{sub}</span> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
 
-  if (loading) return <Loading />
-  if (error) return <Note tone="bad" title="后端没有响应">{error}</Note>
-  if (!data || !data.meta || !data.meta.n_curves) {
-    return <Note tone="warn" title="这个文件夹里没有可用的 DPV 曲线">换一个数据文件夹试试。</Note>
-  }
+function VerdictRow({ v }: { v: any }) {
+  const positive = v.verdict === 'positive'
+  const negative = v.verdict === 'negative'
+  const Icon = positive ? CheckCircle2 : negative ? XCircle : AlertTriangle
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-background/60 px-3.5 py-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className={'grid size-7 shrink-0 place-items-center rounded-full bg-white/70 dark:bg-white/[0.05] ' +
+          (positive ? 'text-emerald-600' : negative ? 'text-muted-foreground' : 'text-amber-600')}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium">{v.file}</div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {v.group} · {v.electrode}{v.batch ? ' · 批次 ' + v.batch : ''}
+          </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <div className={'text-sm font-semibold tabular-nums ' +
+          (positive ? 'text-emerald-600' : negative ? 'text-muted-foreground' : 'text-amber-600')}>
+          {positive ? (v.C_text || fmtConc(v.C)) : negative ? '未检出' : '无法判定'}
+        </div>
+        {positive && v.C_lo != null ? (
+          <div className="text-[11px] tabular-nums text-muted-foreground">
+            95% CI {fmtConc(v.C_lo)} – {fmtConc(v.C_hi)}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+export default function VerdictPage() {
+  const { data, loading, error } = useFolder()
+
+  if (loading) return <PageLoading />
+  if (error) return <PageError title="后端没有响应" detail={error} />
+  if (!data || !data.meta || !data.meta.n_curves) return <NoCurves />
 
   const m = data.meta
   const fitErr = data.fit?.error
   const sc = data.screening
   const verdicts = data.verdicts || []
   const fb = data.fit_batch
-  // single-line fit failed, but a per-batch fit exists and produced verdicts
   const useBatch = !!fb && !fb.error && (fb.batches?.length || 0) > 1 && verdicts.length > 0
+  const posCount = verdicts.filter((v) => v.verdict === 'positive').length
+  const negCount = verdicts.filter((v) => v.verdict === 'negative').length
+  const unkCount = verdicts.length - posCount - negCount
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-[#101828]">结论</h1>
-        <p className="mt-1 text-[12.5px] text-[#667085]">
-          数据文件夹 {m.folder} · {m.n_curves} 条曲线 · {m.n_electrodes} 支独立电极
-        </p>
-      </div>
+    <div className="flex flex-col gap-4 md:gap-6">
+      <PageHeader
+        title="结论"
+        description={`文件夹 ${m.folder} · ${m.n_curves} 条曲线 · ${m.n_electrodes} 支独立电极`}
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link href="/data">
+                核对数据
+                <ArrowRight />
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link href="/calib">校准与定量</Link>
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="曲线" value={m.n_curves} sub="参与分析的扫描" icon={<ScanLine size={16} />} />
-        <StatCard label="独立电极" value={m.n_electrodes} sub="统计上的真实重复数" icon={<Users size={16} />} />
-        <StatCard label="分组" value={m.n_groups} sub="实验条件" icon={<Layers size={16} />} />
-        <StatCard label="QC 合格" value={m.n_qc + ' / ' + m.n_curves} sub={'内参门槛 ' + fmtNum(m.qc_threshold, 2) + ' µA'} icon={<Gauge size={16} />} />
-      </div>
+      <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
+        <StatCard label="曲线" value={m.n_curves} hint="参与分析的扫描" icon={ScanLine} delay={0} />
+        <StatCard label="独立电极" value={m.n_electrodes} hint="统计上的真实重复数" icon={Users} delay={0.04} />
+        <StatCard label="分组" value={m.n_groups} hint="实验条件" icon={Layers} delay={0.08} />
+        <StatCard
+          label="QC 合格"
+          value={m.n_qc + ' / ' + m.n_curves}
+          hint={'内参门槛 ' + fmtNum(m.qc_threshold, 2) + ' µA'}
+          icon={Gauge}
+          tone={m.n_qc === 0 ? 'danger' : m.n_qc < m.n_curves * 0.6 ? 'warning' : 'neutral'}
+          delay={0.12}
+        />
+        <StatCard
+          label="检出样品"
+          value={verdicts.length ? `${posCount} / ${verdicts.length}` : '—'}
+          hint={verdicts.length ? `未检出 ${negCount} · 无法判定 ${unkCount}` : '浓度列留空的行算未知样品'}
+          icon={CheckCircle2}
+          tone={posCount ? 'success' : verdicts.length ? 'neutral' : 'neutral'}
+          delay={0.16}
+        />
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <Card className="px-5 py-4">
-          <SectionTitle sub={fitErr && !useBatch ? '这批数据没有浓度梯度，只能做定性筛查' : useBatch ? '每个样品用自己那一批的截距定量' : ''}>样品判定</SectionTitle>
-
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Panel
+          className="lg:col-span-2"
+          title="样品判定"
+          sub={fitErr && !useBatch ? '这批数据没有浓度梯度，只能做定性筛查' : useBatch ? '每个样品用自己那一批的截距定量' : ''}
+        >
           {useBatch ? (
             <div className="space-y-2">
-              <Note tone="info">
+              <div className="rounded-2xl bg-blue-500/10 px-3.5 py-3 text-[11.5px] leading-5 text-blue-700 ring-1 ring-blue-500/20 dark:text-blue-300">
                 这批数据跨 {fb.batches?.length || 0} 个批次，单条全局校准线用不了，已改为按批标定：
                 每批用自己那天的标准点定截距。合并 R² {fmtNum(fb.r2, 3)}，
                 全局单线 R² {fmtNum(fb.pooled_r2, 3)}，留一批次误差 {fmtNum(fb.rmse_log_lobo, 2)} dex。
-              </Note>
-              {verdicts.map((v) => (
-                <div key={v.file} className="flex items-center justify-between rounded-xl border border-[#eaecf0] px-3.5 py-2.5">
-                  <div className="flex items-center gap-2">
-                    {v.verdict === 'positive'
-                      ? <CheckCircle2 size={16} className="text-[#12b76a]" />
-                      : v.verdict === 'negative'
-                        ? <XCircle size={16} className="text-[#98a2b3]" />
-                        : <AlertTriangle size={16} className="text-[#f79009]" />}
-                    <div>
-                      <div className="text-[13px] font-medium text-[#101828]">{v.file}</div>
-                      <div className="text-[11.5px] text-[#98a2b3]">{v.group} · {v.electrode}{v.batch ? ' · 批次 ' + v.batch : ''}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[13px] font-semibold text-[#101828] tnum">
-                      {v.verdict === 'positive' ? (v.C_text || fmtConc(v.C)) : v.verdict === 'negative' ? '未检出' : '无法判定'}
-                    </div>
-                    {v.verdict === 'positive' && v.C_lo != null ? (
-                      <div className="text-[11px] text-[#98a2b3] tnum">
-                        95% CI {fmtConc(v.C_lo)} – {fmtConc(v.C_hi)}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+              </div>
+              {verdicts.map((v) => <VerdictRow key={v.file} v={v} />)}
             </div>
           ) : fitErr ? (
             <>
-              <Note tone="warn" title={explainFitError(fitErr).title}>
-                {explainFitError(fitErr).detail}
-              </Note>
+              <div className="flex items-start gap-2.5 rounded-2xl bg-amber-500/10 px-3.5 py-3 ring-1 ring-amber-500/20">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 space-y-1">
+                  <div className="text-xs font-medium">{explainFitError(fitErr).title}</div>
+                  <p className="text-[11px] leading-4 text-muted-foreground">{explainFitError(fitErr).detail}</p>
+                </div>
+              </div>
+
               {sc && !sc.error ? (
                 <div className="mt-4">
-                  <div className="flex items-center gap-2 text-[12.5px] text-[#667085]">
-                    定性筛查：
-                    <Badge tone="mute">{sc.neg_group}</Badge>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                    定性筛查
+                    <Badge variant="secondary">{sc.neg_group}</Badge>
                     对比
-                    <Badge tone="info">{sc.pos_group}</Badge>
-                    <span className="text-[11.5px] text-[#98a2b3]">
-                      {sc.n_neg_elec} 支 / {sc.n_pos_elec} 支独立电极
-                    </span>
+                    <Badge variant="outline">{sc.pos_group}</Badge>
+                    <span>{sc.n_neg_elec} 支 / {sc.n_pos_elec} 支独立电极</span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <MiniStat label="信号比" value={sc.ratio.toFixed(2) + '×'} />
@@ -117,20 +181,20 @@ export default function VerdictPage() {
                   </div>
                   <div className="mt-3">
                     {!sc.separates ? (
-                      <Note tone="bad">
+                      <div className="rounded-2xl bg-red-500/10 px-3.5 py-3 text-[11.5px] leading-5 text-red-700 ring-1 ring-red-500/20 dark:text-red-300">
                         这条截断值切不开两组：阴性对照 {sc.false_pos}/{sc.n_neg_elec} 支被判成阳性，
                         阳性样品 {sc.missed}/{sc.n_pos_elec} 支漏检。先把空白 CV 从
-                        {' '}{Math.abs(sc.neg_sd / sc.neg_mean * 100).toFixed(0)}% 压到 15–25% 再谈阈值。
-                      </Note>
+                        {' '}{Math.abs((sc.neg_sd / sc.neg_mean) * 100).toFixed(0)}% 压到 15–25% 再谈阈值。
+                      </div>
                     ) : (
-                      <Note tone="ok">
+                      <div className="rounded-2xl bg-emerald-500/10 px-3.5 py-3 text-[11.5px] leading-5 text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300">
                         两组完全分开（{sc.n_neg_elec} vs {sc.n_pos_elec} 支电极），截断值
                         {' '}{fmtNum(sc.cutoff, 2)}，可用于定性判断。注意：只能给「检出 / 未检出」，给不出浓度。
-                      </Note>
+                      </div>
                     )}
                   </div>
                   {sc.p_floor > 0.05 ? (
-                    <p className="mt-2 text-[11.5px] text-[#98a2b3]">
+                    <p className="mt-2 text-[11px] text-muted-foreground">
                       每组电极数太少，Mann-Whitney 的 p 值最小只能到 {sc.p_floor.toFixed(2)}。
                       每组至少 4 支电极才可能得到 p &lt; 0.05。
                     </p>
@@ -138,75 +202,51 @@ export default function VerdictPage() {
                 </div>
               ) : null}
             </>
-          ) : (
-            <div className="mt-1 space-y-2">
-              {verdicts.length ? verdicts.map((v) => (
-                <div key={v.file} className="flex items-center justify-between rounded-xl border border-[#eaecf0] px-3.5 py-2.5">
-                  <div className="flex items-center gap-2">
-                    {v.verdict === 'positive'
-                      ? <CheckCircle2 size={16} className="text-[#12b76a]" />
-                      : v.verdict === 'negative'
-                        ? <XCircle size={16} className="text-[#98a2b3]" />
-                        : <AlertTriangle size={16} className="text-[#f79009]" />}
-                    <div>
-                      <div className="text-[13px] font-medium text-[#101828]">{v.file}</div>
-                      <div className="text-[11.5px] text-[#98a2b3]">{v.group} · {v.electrode}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[13px] font-semibold text-[#101828] tnum">
-                      {v.verdict === 'positive' ? fmtConc(v.C) : v.verdict === 'negative' ? '未检出' : '无法判定'}
-                    </div>
-                    {v.verdict === 'positive' && v.C_lo != null ? (
-                      <div className="text-[11px] text-[#98a2b3] tnum">
-                        95% CI {fmtConc(v.C_lo)} – {fmtConc(v.C_hi)}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )) : <Note tone="mute">没有待测样品。把浓度列留空的行当作未知样品。</Note>}
+          ) : verdicts.length ? (
+            <div className="space-y-2">
+              {verdicts.map((v) => <VerdictRow key={v.file} v={v} />)}
             </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">没有待测样品。把浓度列留空的行当作未知样品。</p>
           )}
-        </Card>
+        </Panel>
 
-        <Card className="px-5 py-4">
-          <SectionTitle>体系状态</SectionTitle>
-          <p className="-mt-1 mb-1 text-[11.5px] text-[#98a2b3]">这次分析的可信度取决于这几项</p>
-          <div className="divide-y divide-[#f2f4f7]">
+        <Panel title="体系状态" sub="这次分析的可信度取决于这几项">
+          <div className="divide-y divide-border/60">
             <KeyVal k="扫描类型" v={m.technique_cn || '—'} />
             <KeyVal k="扫描窗口" v={m.window[1].toFixed(2) + ' → ' + m.window[0].toFixed(2) + ' V'} />
             <KeyVal k="响应指标" v={m.metric_cn} />
             <KeyVal k="响应方向" v={data.fit?.direction === 'signal-off' ? '信号关闭' : data.fit?.direction === 'signal-on' ? '信号开启' : '—'} />
             <KeyVal k="内参中位数" v={fmtNum(m.qc_median, 2) + ' µA'} />
-            <KeyVal k="校准 R²" v={(useBatch ? fb?.r2 : data.fit?.r2) != null ? fmtNum(useBatch ? fb.r2 : data.fit.r2, 3) : '—'} />
-            <KeyVal k="LOD" v={useBatch
-              ? (fb?.batches?.length ? '各批 ' + fmtConc(Math.min(...fb.batches.map((b) => b.LOD_M ?? Infinity))) + ' 起' : '—')
-              : data.fit?.LOD_M != null ? fmtConc(data.fit.LOD_M) : '—'} />
+            <KeyVal k="校准 R²" v={(useBatch ? fb?.r2 : data.fit?.r2) != null ? fmtNum(useBatch ? fb!.r2! : data.fit!.r2!, 3) : '—'} />
+            <KeyVal
+              k="LOD"
+              v={useBatch
+                ? (fb?.batches?.length ? '各批 ' + fmtConc(Math.min(...fb.batches.map((b) => b.LOD_M ?? Infinity))) + ' 起' : '—')
+                : data.fit?.LOD_M != null ? fmtConc(data.fit.LOD_M) : '—'}
+            />
           </div>
-        </Card>
+        </Panel>
       </div>
 
-      <Card className="px-5 py-4">
-        <SectionTitle sub={'各条件平均曲线（基线校正，' + m.n_points + ' 点）'}>曲线</SectionTitle>
-        <div className="mt-2">
+      <Panel title="曲线" sub={'各条件平均曲线（基线校正，' + m.n_points + ' 点）'}>
+        <div className="mb-2">
           <Legend series={data.curves.series} />
         </div>
         <CurvesChart grid={data.curves.grid} series={data.curves.series} height={300} />
-      </Card>
+      </Panel>
 
       {data.errors?.length ? (
-        <Card className="px-5 py-4">
-          <SectionTitle sub={data.errors.length + ' 个文件没参与分析'}>跳过的文件</SectionTitle>
-          <div className="max-h-52 space-y-1 overflow-auto">
+        <Panel title="跳过的文件" sub={data.errors.length + ' 个文件没参与分析'}>
+          <div className="max-h-52 space-y-1 overflow-auto scroll-slim">
             {data.errors.map((e) => (
-              <div key={e.file} className="flex gap-2 text-[12px]">
-                <FolderSearch size={13} className="mt-0.5 shrink-0 text-[#98a2b3]" />
-                <span className="text-[#475467]">{e.file}</span>
-                <span className="text-[#98a2b3]">{e.error}</span>
+              <div key={e.file} className="flex gap-2 text-[11px]">
+                <span className="shrink-0 text-foreground">{e.file}</span>
+                <span className="text-muted-foreground">{e.error}</span>
               </div>
             ))}
           </div>
-        </Card>
+        </Panel>
       ) : null}
     </div>
   )
@@ -214,9 +254,18 @@ export default function VerdictPage() {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#eaecf0] px-3 py-2">
-      <div className="text-[11.5px] text-[#667085]">{label}</div>
-      <div className="mt-0.5 text-[18px] font-semibold leading-none text-[#101828] tnum">{value}</div>
+    <div className="rounded-2xl bg-background/60 px-3 py-2">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-lg font-semibold leading-none tabular-nums">{value}</div>
+    </div>
+  )
+}
+
+function KeyVal({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2">
+      <span className="text-[11px] text-muted-foreground">{k}</span>
+      <span className="text-[11px] font-medium tabular-nums">{v}</span>
     </div>
   )
 }

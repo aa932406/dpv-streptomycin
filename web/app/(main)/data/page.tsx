@@ -1,93 +1,67 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Save, Sparkles } from 'lucide-react'
+import Link from 'next/link'
+import { AlertTriangle, Check, FlaskConical, Layers, Save, Sparkles, SquarePen, X } from 'lucide-react'
 import { useFolder } from '@/lib/folder-context'
 import { saveMetadata, type MetaRow } from '@/lib/api'
-import { Badge, Card, HowTo, Loading, Note, SectionTitle, StatCard } from '@/components/ui'
-
-const INPUT =
-  'w-full rounded-md border border-[#e8eaee] bg-white px-2 py-1 text-[12.5px] text-[#101828] ' +
-  'outline-none transition focus:border-[#2e90fa] focus:ring-2 focus:ring-[#2e90fa]/15'
-
-const SELECT =
-  'rounded-md border border-[#e8eaee] bg-white px-2 py-1 text-[12px] text-[#344054] outline-none ' +
-  'transition focus:border-[#2e90fa] focus:ring-2 focus:ring-[#2e90fa]/15'
-
-const BTN =
-  'inline-flex items-center gap-1 rounded-md border border-[#e8eaee] bg-white px-2.5 py-1.5 ' +
-  'text-[12px] font-medium text-[#344054] transition hover:bg-[#f9fafb] disabled:opacity-40'
-
-const BTN_DARK =
-  'inline-flex items-center gap-1 rounded-md bg-[#101828] px-2.5 py-1.5 text-[12px] ' +
-  'font-medium text-white transition hover:bg-[#1d2939] disabled:opacity-40'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import { PageHeader } from '@/components/common/layout/PageHeader'
+import { StatCard } from '@/components/common/layout/StatCard'
+import { HowTo } from '@/components/HowTo'
+import { Panel } from '@/components/Panel'
+import { NoCurves, PageError, PageLoading } from '@/components/PageState'
 
 type ColKey = keyof MetaRow
 
 const COLS: { key: ColKey | 'qc'; label: string; hint: string; desc: string; eg: string; edit: boolean }[] = [
   {
-    key: 'file',
-    label: '文件',
-    hint: '一次扫描一个',
+    key: 'file', label: '文件', hint: '一次扫描一个', edit: false,
     desc: '仪器导出的 .cor 文件。一行 = 一次扫描，文件名不可改，它就是这个样品的身份。',
     eg: '材料10uM.MB-dpv2.cor',
-    edit: false,
   },
   {
-    key: 'group',
-    label: '分组',
-    hint: '同一条件同名',
+    key: 'group', label: '分组', hint: '同一条件同名', edit: true,
     desc: '实验条件。条件完全相同的曲线填同一个名字，不同条件填不同名字。统计和对比都按这一列分组。',
     eg: 'material+MB / target+Enz',
-    edit: true,
   },
   {
-    key: 'electrode',
-    label: '电极',
-    hint: '同一支电极同名',
+    key: 'electrode', label: '电极', hint: '同一支电极同名', edit: true,
     desc: '电极编号。默认取文件名，所以看着像文件名。同一支电极重复扫描（_ReStart、-dpv2）必须填同一个名字，否则「留一电极」交叉验证会把同一次测量当成两次独立重复，准确率虚高。',
     eg: 'E3（同组内唯一）',
-    edit: true,
   },
   {
-    key: 'concentration_M',
-    label: '浓度 (M)',
-    hint: '留空 / 0 / >0',
+    key: 'concentration_M', label: '浓度 (M)', hint: '留空 / 0 / >0', edit: true,
     desc: '链霉素浓度，单位 mol/L。三种填法决定这个样品在分析里算什么：留空 = 未知样品（工具要判定它）、0 = 空白、> 0 = 标准点（用来拟合曲线）。',
     eg: '1e-6（= 1 µM）',
-    edit: true,
   },
   {
-    key: 'batch',
-    label: '批次',
-    hint: '哪天做的',
+    key: 'batch', label: '批次', hint: '哪天做的', edit: true,
     desc: '测量批次。不同日期、不同批 MOF 必须填不同的值。批次之间信号会整体漂移，多批次时按批标定靠这一列。',
     eg: '20261010',
-    edit: true,
   },
   {
-    key: 'label',
-    label: '标签',
-    hint: '1=有 0=没有',
+    key: 'label', label: '标签', hint: '1=有 0=没有', edit: true,
     desc: '真值：这个样品里到底有没有链霉素。1 = 有，0 = 没有，留空 = 不知道或不需要。只给分类模型（LDA / 随机森林）和定性筛查用；不做分类就不必填。',
     eg: '1（加标了）/ 0（空白基质）',
-    edit: true,
   },
   {
-    key: 'role',
-    label: '角色',
-    hint: '一般不用填',
+    key: 'role', label: '角色', hint: '一般不用填', edit: true,
     desc: '这条曲线在校准里的身份，通常由浓度列自动推断：留空→未知样品、0→空白、>0→标准点。只有需要覆盖推断时才手填（blank / standard / sample / material）。',
     eg: '留空（自动）',
-    edit: true,
   },
   {
-    key: 'qc',
-    label: 'QC',
-    hint: '自动判定',
+    key: 'qc', label: 'QC', hint: '自动判定', edit: false,
     desc: '内参峰（+0.35 V）电流是否够强。太弱的曲线电极没洗干净或修饰失败，会被剔除，不参与统计与建模。',
     eg: '通过 / 剔除',
-    edit: false,
   },
 ]
 
@@ -98,7 +72,6 @@ const UNITS: { k: string; label: string; mul: number }[] = [
   { k: 'uM', label: 'µM → M', mul: 1e-6 },
   { k: 'mM', label: 'mM → M', mul: 1e-3 },
 ]
-
 
 export default function DataPage() {
   const { data, loading, error, folder, reload } = useFolder()
@@ -174,9 +147,9 @@ export default function DataPage() {
     return out
   }, [rows])
 
-  if (loading) return <Loading />
-  if (error) return <Note tone="bad" title="后端没有响应">{error}</Note>
-  if (!data) return null
+  if (loading) return <PageLoading />
+  if (error) return <PageError title="后端没有响应" detail={error} />
+  if (!data || !data.meta?.n_curves) return <NoCurves />
 
   const set = (i: number, k: ColKey, v: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
@@ -265,245 +238,257 @@ export default function DataPage() {
   }
 
   const groupNames = Array.from(new Set(rows.map((r) => r.group).filter(Boolean)))
-
+  const allPicked = sel.size === rows.length && rows.length > 0
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-[#101828]">数据</h1>
-          <p className="mt-1 text-[12.5px] text-[#667085]">
-            这张表就是你的实验记录。填好之后保存，所有页面立刻用新值 · 文件来自 data/{folder}/
-          </p>
+    <div className="flex flex-col gap-4 md:gap-6">
+      <PageHeader
+        title="数据"
+        description={'这张表就是你的实验记录。填好之后保存，所有页面立刻用新值 · 文件来自 data/' + folder + '/'}
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link href="/calib">看校准</Link>
+            </Button>
+            <Button size="sm" className="rounded-full" onClick={onSave} disabled={saving}>
+              <Save className="size-3.5" />
+              {saving ? '保存中…' : '保存并重新分析'}
+            </Button>
+          </>
+        }
+      />
+
+      {saved ? (
+        <div className="flex items-start gap-2.5 rounded-[20px] bg-emerald-500/10 px-4 py-3 ring-1 ring-emerald-500/20">
+          <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+          <div className="text-[11px] leading-5">{saved}</div>
         </div>
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="flex items-center gap-1.5 rounded-lg bg-[#101828] px-3.5 py-2 text-[12.5px] font-medium text-white transition hover:bg-[#1d2939] disabled:opacity-50"
-        >
-          <Save size={14} />
-          {saving ? '保存中…' : '保存并重新分析'}
-        </button>
-      </div>
+      ) : null}
+      {err ? (
+        <div className="flex items-start gap-2.5 rounded-[20px] bg-red-500/10 px-4 py-3 ring-1 ring-red-500/20">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
+          <div className="min-w-0 text-[11px] leading-5"><b>保存失败：</b>{err}</div>
+        </div>
+      ) : null}
+      {flash ? (
+        <div className="rounded-[20px] bg-blue-500/10 px-4 py-3 ring-1 ring-blue-500/20">
+          <div className="text-[11px] leading-5 text-blue-700 dark:text-blue-300">{flash}</div>
+        </div>
+      ) : null}
 
-      {saved ? <Note tone="ok">{saved}</Note> : null}
-      {err ? <Note tone="bad" title="保存失败">{err}</Note> : null}
-      {flash ? <Note tone="info">{flash}</Note> : null}
+      <section className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        <StatCard label="标准点" value={stats.std} hint="浓度 > 0，用来拟合曲线" icon={FlaskConical} tone="info" />
+        <StatCard label="空白" value={stats.blank} hint="浓度填 0，算 LOD 要 3 条以上" icon={SquarePen} delay={0.04} />
+        <StatCard label="未知样品" value={stats.unknown} hint="浓度留空，工具来判定" icon={Layers} tone="warning" delay={0.08} />
+        <StatCard label="批次 / 分组" value={stats.batches + ' / ' + stats.groups} hint="不同日期要分开填" icon={X} delay={0.12} />
+      </section>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="标准点" value={stats.std} sub="浓度 > 0，用来拟合曲线" />
-        <StatCard label="空白" value={stats.blank} sub="浓度填 0，算 LOD 要 3 条以上" />
-        <StatCard label="未知样品" value={stats.unknown} sub="浓度留空，工具来判定" />
-        <StatCard label="批次 / 分组" value={stats.batches + ' / ' + stats.groups} sub="不同日期要分开填" />
-      </div>
-
-      <Card className="px-5 py-4">
-        <SectionTitle sub="点开看每一列到底填什么">这 8 列分别是什么意思</SectionTitle>
-        <div className="mt-1 grid gap-x-8 md:grid-cols-2">
+      <Panel title="这 8 列分别是什么意思" sub="点开看每一列到底填什么">
+        <div className="grid gap-x-8 md:grid-cols-2">
           {COLS.map((c) => (
-            <div key={String(c.key)} className="flex gap-3 border-t border-[#f2f4f7] py-2.5">
-              <div className="w-[62px] shrink-0 text-[12.5px] font-medium text-[#101828]">{c.label}</div>
+            <div key={String(c.key)} className="flex gap-3 border-t border-border/50 py-2.5 first:border-t-0 md:[&:nth-child(2)]:border-t-0">
+              <div className="w-[62px] shrink-0 text-xs font-medium">{c.label}</div>
               <div className="min-w-0">
-                <div className="text-[12.5px] leading-relaxed text-[#475467]">{c.desc}</div>
-                <div className="mt-0.5 text-[11.5px] text-[#98a2b3]">例：{c.eg}</div>
+                <div className="text-[11px] leading-5 text-muted-foreground">{c.desc}</div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground/70">例：{c.eg}</div>
               </div>
             </div>
           ))}
         </div>
-      </Card>
+      </Panel>
 
-
-      <Card className="px-5 py-4">
-        <SectionTitle sub="一行 = 一次扫描；改完点右上角保存">数据表</SectionTitle>
-
-        <div className="mt-2 space-y-2 rounded-xl border border-[#eef0f3] bg-[#fbfcfd] px-3 py-2.5">
+      <Panel title="数据表" sub="一行 = 一次扫描；改完点右上角保存">
+        <div className="space-y-2 rounded-2xl bg-background/60 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] text-[#667085]">
-              已选 <b className="text-[#101828] tnum">{sel.size || '0'}</b> / {rows.length} 行
+            <span className="text-[11px] text-muted-foreground">
+              已选 <b className="tabular-nums text-foreground">{sel.size || '0'}</b> / {rows.length} 行
             </span>
-            <select
-              className={SELECT}
+            <Select
               value=""
-              onChange={(e) => {
-                const g = e.target.value
+              onValueChange={(g) => {
                 if (!g) return
                 const idx = rows.map((r, i) => (r.group === g ? i : -1)).filter((i) => i >= 0)
                 setSel(new Set(idx))
                 setFlash('已选中「' + g + '」组 ' + idx.length + ' 行，下面填值点「应用到已选」。')
-                e.target.value = ''
               }}
             >
-              <option value="">按分组全选…</option>
-              {groupNames.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-            <span className="text-[12px] text-[#98a2b3]">|</span>
-            <select className={SELECT} value={String(bulkCol)} onChange={(e) => setBulkCol(e.target.value as ColKey)}>
-              {COLS.filter((c) => c.edit).map((c) => (
-                <option key={String(c.key)} value={String(c.key)}>{c.label}</option>
-              ))}
-            </select>
-            <input
-              className={INPUT + ' !w-[150px]'}
+              <SelectTrigger size="sm" className="w-[150px]"><SelectValue placeholder="按分组全选…" /></SelectTrigger>
+              <SelectContent>
+                {groupNames.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-[11px] text-muted-foreground/50">|</span>
+            <Select value={String(bulkCol)} onValueChange={(v) => setBulkCol(v as ColKey)}>
+              <SelectTrigger size="sm" className="w-[110px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {COLS.filter((c) => c.edit).map((c) => (
+                  <SelectItem key={String(c.key)} value={String(c.key)}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="h-8 w-[160px] text-xs"
               placeholder="改成什么（留空=清空）"
               value={bulkVal}
               onChange={(e) => setBulkVal(e.target.value)}
             />
-            <button className={BTN_DARK} onClick={applyBulk}>
+            <Button size="sm" className="h-8 rounded-full px-3 text-[11px]" onClick={applyBulk}>
               应用到{sel.size ? '已选' : '全部'}
-            </button>
+            </Button>
             {sel.size ? (
-              <button className={BTN} onClick={() => setSel(new Set())}>清空选择</button>
+              <Button variant="outline" size="sm" className="h-8 rounded-full px-3 text-[11px]" onClick={() => setSel(new Set())}>
+                清空选择
+              </Button>
             ) : null}
           </div>
 
-
           <div className="flex flex-wrap items-center gap-2">
-            <button className={BTN} onClick={() => { setRegexOpen((v) => !v); setPasteOpen(false) }}>
-              <Sparkles size={12} /> 从文件名提取
-            </button>
-            <button className={BTN} onClick={() => { setPasteOpen((v) => !v); setRegexOpen(false) }}>
+            <Button
+              variant="outline" size="sm" className="h-8 rounded-full px-3 text-[11px]"
+              onClick={() => { setRegexOpen((v) => !v); setPasteOpen(false) }}
+            >
+              <Sparkles className="size-3" /> 从文件名提取
+            </Button>
+            <Button
+              variant="outline" size="sm" className="h-8 rounded-full px-3 text-[11px]"
+              onClick={() => { setPasteOpen((v) => !v); setRegexOpen(false) }}
+            >
               粘贴整列
-            </button>
-            <span className="text-[11.5px] text-[#98a2b3]">
+            </Button>
+            <span className="text-[10px] text-muted-foreground/70">
               两种批量方式都只改上面选的那一列、以及已选的行（没选就是全部行）
             </span>
           </div>
 
           {regexOpen ? (
-            <div className="flex flex-wrap items-center gap-2 border-t border-[#eef0f3] pt-2">
-              <span className="text-[12px] text-[#667085]">文件名正则（第 1 个括号就是要的值）</span>
-              <input className={INPUT + ' !w-[260px] font-mono'} value={regexPat} onChange={(e) => setRegexPat(e.target.value)} />
-              <select className={SELECT} value={regexUnit} onChange={(e) => setRegexUnit(e.target.value)}>
-                {UNITS.map((u) => (
-                  <option key={u.k} value={u.k}>{u.label}</option>
-                ))}
-              </select>
-              <button className={BTN_DARK} onClick={applyRegex}>提取并填入</button>
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
+              <span className="text-[11px] text-muted-foreground">文件名正则（第 1 个括号就是要的值）</span>
+              <Input className="h-8 w-[260px] font-mono text-xs" value={regexPat} onChange={(e) => setRegexPat(e.target.value)} />
+              <Select value={regexUnit} onValueChange={setRegexUnit}>
+                <SelectTrigger size="sm" className="w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {UNITS.map((u) => <SelectItem key={u.k} value={u.k}>{u.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="h-8 rounded-full px-3 text-[11px]" onClick={applyRegex}>提取并填入</Button>
             </div>
           ) : null}
 
           {pasteOpen ? (
-            <div className="border-t border-[#eef0f3] pt-2">
-              <div className="mb-1 text-[12px] text-[#667085]">
+            <div className="border-t border-border/50 pt-2">
+              <div className="mb-1 text-[11px] text-muted-foreground">
                 从 Excel 复制一列粘进来，按行序填到上面选的那一列（每行一个值，空行忽略）
               </div>
               <textarea
-                className={INPUT + ' h-[88px] font-mono'}
+                className="h-[88px] w-full rounded-xl border border-transparent bg-muted/55 px-3 py-2 font-mono text-xs outline-none focus-visible:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/15"
                 placeholder="每行一个值"
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
               />
-              <button className={BTN_DARK + ' mt-1.5'} onClick={applyPaste}>填入</button>
+              <Button size="sm" className="mt-1.5 h-8 rounded-full px-3 text-[11px]" onClick={applyPaste}>填入</Button>
             </div>
           ) : null}
         </div>
 
-
         {dupPairs.length ? (
-          <div className="mt-2">
-            <Note tone="warn" title="有电极看起来是同一支">
+          <div className="mt-2 flex items-start gap-2.5 rounded-2xl bg-amber-500/10 px-3.5 py-2.5 ring-1 ring-amber-500/20">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+            <div className="min-w-0 space-y-1 text-[11px] leading-5">
+              <div className="font-medium">有电极看起来是同一支</div>
               {dupPairs.map((d, i) => (
-                <div key={i}>
+                <div key={i} className="text-muted-foreground">
                   「{d.group}」组里 {d.names.join(' 和 ')} 去掉末尾编号后同名。如果它们其实是同一支电极，请把「电极」列改成同一个名字再保存；确实是两支不同电极就不用管。
                 </div>
               ))}
-            </Note>
+            </div>
           </div>
         ) : null}
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[1120px] border-collapse text-[12.5px]">
-            <thead>
-              <tr className="text-left text-[11.5px] text-[#667085]">
-                <th className="w-[28px] pb-2 pr-1 align-bottom font-medium">
+        <div className="mt-3 overflow-hidden rounded-2xl bg-background/60">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">
                   <input
                     type="checkbox"
-                    checked={sel.size === rows.length && rows.length > 0}
+                    className="size-3.5 accent-foreground"
+                    checked={allPicked}
                     onChange={(e) => setSel(e.target.checked ? new Set(rows.map((_, i) => i)) : new Set())}
                   />
-                </th>
+                </TableHead>
                 {COLS.map((c) => (
-                  <th key={String(c.key)} className="pb-2 pr-3 align-bottom font-medium" title={c.desc}>
-                    <div className="whitespace-nowrap text-[#344054]">{c.label}</div>
-                    <div className="mt-0.5 whitespace-nowrap text-[10.5px] font-normal leading-tight text-[#98a2b3]">{c.hint}</div>
-                  </th>
+                  <TableHead key={String(c.key)} title={c.desc}>
+                    <div className="whitespace-nowrap text-foreground">{c.label}</div>
+                    <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal leading-tight text-muted-foreground/70">{c.hint}</div>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r, i) => {
                 const s = String(r.concentration_M).trim()
                 const v = s === '' ? null : Number(s)
                 const tag = v == null || !isFinite(v) ? 'unknown' : v === 0 ? 'blank' : v > 0 ? 'std' : 'unknown'
                 const picked = sel.has(i)
                 return (
-                  <tr key={r.file} className={'border-t border-[#f2f4f7]' + (picked ? ' bg-[#f5f9ff]' : '')}>
-                    <td className="py-1.5 pr-1">
-                      <input type="checkbox" checked={picked} onChange={() => toggle(i)} />
-                    </td>
-                    <td className="max-w-[190px] truncate py-1.5 pr-3 text-[#475467]" title={r.file}>{r.file}</td>
-                    <td className="py-1.5 pr-3">
-                      <input className={INPUT} value={r.group} onChange={(e) => set(i, 'group', e.target.value)} />
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <input className={INPUT} value={r.electrode} onChange={(e) => set(i, 'electrode', e.target.value)} />
-                    </td>
-                    <td className="py-1.5 pr-3">
+                  <TableRow key={r.file} className={picked ? 'bg-blue-500/[0.06]' : undefined}>
+                    <TableCell>
+                      <input type="checkbox" className="size-3.5 accent-foreground" checked={picked} onChange={() => toggle(i)} />
+                    </TableCell>
+                    <TableCell className="max-w-[190px] truncate text-muted-foreground" title={r.file}>{r.file}</TableCell>
+                    <TableCell>
+                      <Input className="h-8 w-[150px] text-xs" value={r.group} onChange={(e) => set(i, 'group', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input className="h-8 w-[150px] text-xs" value={r.electrode} onChange={(e) => set(i, 'electrode', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
                       <div className="flex w-[196px] items-center gap-1.5">
-                        <input
-                          className={INPUT}
+                        <Input
+                          className="h-8 text-xs"
                           placeholder="留空 = 未知"
                           value={r.concentration_M}
                           onChange={(e) => set(i, 'concentration_M', e.target.value)}
                         />
-                        {tag === 'blank' ? <Badge tone="mute">空白</Badge>
-                          : tag === 'std' ? <Badge tone="info">标准</Badge>
-                            : <Badge tone="warn">未知</Badge>}
+                        {tag === 'blank'
+                          ? <Badge variant="secondary">空白</Badge>
+                          : tag === 'std'
+                            ? <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">标准</Badge>
+                            : <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">未知</Badge>}
                       </div>
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <input className={INPUT + ' !w-[104px]'} value={r.batch} onChange={(e) => set(i, 'batch', e.target.value)} />
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <input className={INPUT + ' !w-[54px]'} placeholder="0/1" value={r.label} onChange={(e) => set(i, 'label', e.target.value)} />
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <input className={INPUT + ' !w-[92px]'} placeholder="自动" value={r.role} onChange={(e) => set(i, 'role', e.target.value)} />
-                    </td>
-                    <td className="py-1.5">
-                      {data.samples[i]?.qc_pass ? <Badge tone="ok">通过</Badge> : <Badge tone="bad">剔除</Badge>}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>
+                      <Input className="h-8 w-[104px] text-xs" value={r.batch} onChange={(e) => set(i, 'batch', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input className="h-8 w-[56px] text-xs" placeholder="0/1" value={r.label} onChange={(e) => set(i, 'label', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input className="h-8 w-[92px] text-xs" placeholder="自动" value={r.role} onChange={(e) => set(i, 'role', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      {data.samples[i]?.qc_pass
+                        ? <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">通过</Badge>
+                        : <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300">剔除</Badge>}
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-
 
         <HowTo
           title="浓度那列到底填什么（三种填法）"
           items={[
-            <>
-              <b>留空</b> = 未知样品。工具会在「结论」页告诉你有没有检出、浓度是多少、95% 区间多宽。
-            </>,
-            <>
-              <b>填 0</b> = 空白。没有加链霉素的样品，用来算 LOD（检测限）。至少要 3 条，否则算不出 LOD。
-            </>,
-            <>
-              <b>填大于 0</b> = 标准点。已知浓度的加标样品，用来拟合浓度到信号的曲线。至少要 3 个不同浓度、总共 4 条以上。
-            </>,
-            <>
-              单位是 mol/L：1 pM = 1e-12、1 nM = 1e-9、1 µM = 1e-6、1 mM = 1e-3。
-            </>,
-            <>
-              不用一行一行填：上面「按分组全选」加「应用到已选」，或者「从文件名提取」「粘贴整列」，三种都能批量。
-            </>,
+            <><b>留空</b> = 未知样品。工具会在「结论」页告诉你有没有检出、浓度是多少、95% 区间多宽。</>,
+            <><b>填 0</b> = 空白。没有加链霉素的样品，用来算 LOD（检测限）。至少要 3 条，否则算不出 LOD。</>,
+            <><b>填大于 0</b> = 标准点。已知浓度的加标样品，用来拟合浓度到信号的曲线。至少要 3 个不同浓度、总共 4 条以上。</>,
+            <>单位是 mol/L：1 pM = 1e-12、1 nM = 1e-9、1 µM = 1e-6、1 mM = 1e-3。</>,
+            <>不用一行一行填：上面「按分组全选」加「应用到已选」，或者「从文件名提取」「粘贴整列」，三种都能批量。</>,
           ]}
         />
-      </Card>
+      </Panel>
     </div>
   )
 }

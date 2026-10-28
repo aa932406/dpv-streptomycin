@@ -26,11 +26,19 @@
 
 ## 2. 界面结构
 
-- **顶栏**：左边是产品名；右边三个控件 ——
+界面只有两样东西：**顶部一行控件** + **底部一条悬浮 dock**，没有侧边栏、没有二级菜单。
+
+- **顶部一行**：左边是产品名和当前文件夹；右边四个控件 ——
   - **文件夹下拉**：`data/` 下的每个日期文件夹一项，括号里是文件数；名字带「（演示）」的是合成数据
-  - **分析参数**：基线拟合阶数（默认 4）、内参峰 QC 下限（默认占本批中位数的 35%）
+  - **分析参数**：基线拟合阶数（默认 4）、内参峰 QC 下限（默认占本批中位数的 35%）、扫描类型
+  - **主题**：浅色 / 深色切换
   - **导出报告**：任何时候都能下载 zip
-- **底部悬浮 dock**：数据 / 结论 / 曲线 / 统计 / 校准 / 建模 / 预测 / 导出，八页
+- **底部悬浮 dock**：数据 / 结论 / 曲线 / 统计 / 校准 / 建模 / 预测 / 导出，八页。
+  鼠标移上去图标会放大并浮出名字；相邻两页之间有一条细竖线分组（输入 / 看结果 / 定量 / 输出）。
+
+页面本身只有一种卡片：**圆角 20px 的浅灰底块**（`rounded-[20px] bg-muted`），没有边框、没有阴影，
+靠底色和间距分层。每张卡片左上角是标题，右上角是这张卡片专属的按钮。表格包在同样的灰底块里，
+太宽时自己横向滚动。
 
 切换文件夹后所有页面立刻重算。结果会缓存，同一个文件夹第二次打开很快。
 
@@ -413,3 +421,18 @@ QC 门槛是「本批内参峰中位数的 35%」，不是固定电流值 ——
 可以。`web/next.config.ts` 已经把所有 `/api/*` 反代到 `API_BASE`，
 浏览器始终同源、没有 CORS 问题。云端只要设 `API_BASE` 环境变量指向 FastAPI，
 再 `NEXT_OUTPUT=standalone npm run build` 就能出可容器化的产物。
+
+**Q：构建前端时报 `Module not found: Can't resolve '@radix-ui/react-slot'`（或 class-variance-authority、@tabler/icons-react）**
+说明 `web/node_modules` 是旧安装，`package.json` 里新加的依赖没装上。
+现在的 `run_web.bat` 会先核对每个依赖是否真的在 `node_modules` 里，
+缺了就自动跑一次 `npm install`（约 1 分钟，需要联网），所以**再双击一次就好**。
+如果仍然失败，手动执行：
+```
+cd web
+npm install
+```
+
+**Q：构建时提示 `Next.js inferred your workspace root ... multiple lockfiles`**
+项目根目录残留了 `package.json` / `package-lock.json` / `node_modules`，Next 会误判工作区根。
+这三个文件已经移到 `out/_trash/root_npm/`；`web/next.config.ts` 也显式设置了
+`outputFileTracingRoot`，警告不会再出现。别在项目根目录跑 `npm install`。
