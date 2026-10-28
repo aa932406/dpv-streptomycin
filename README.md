@@ -3,11 +3,13 @@
 **把辰华 CHI 的 `.cor` 原始曲线，变成「检出 / 未检出 + 浓度 + 置信区间」的完整流水线。**
 解析 → 基线校正 → 找峰 → 统计检验 → 校准曲线与 LOD → 机器学习定量 → 可发表的报告，全部带**按电极 / 按批次切分的诚实验证**。
 
-> An open-source toolkit for electrochemical biosensor data (DPV / SWV / CV from CHI instruments).
+> A self-hostable toolkit for electrochemical biosensor data (DPV / SWV / CV from CHI instruments).
 > Parses raw `.cor` files, does baseline correction and peak picking, runs the statistics,
 > builds calibration curves with proper LOD, trains validated regression models, and serves it all
 > through a self-hostable web UI. Validation is grouped by **electrode** and **batch**, never by
 > individual scan — because that is where most published numbers quietly break.
+
+**许可**：软件 [GPL-3.0](LICENSE) · 文档与数据 [CC BY 4.0](LICENSE-DOCS.md)
 
 ![结论页](docs/images/hero-verdict.png)
 
@@ -225,10 +227,23 @@ API 只听 `127.0.0.1:8000`，浏览器只跟 Next 的 3000 说话 —— **对�
 
 ## 引用与许可
 
-MIT License，见 [LICENSE](LICENSE)。用在论文里请引用本仓库：
+本项目**分两部分授权**：
+
+| 范围 | 内容 | 许可 |
+|---|---|---|
+| **软件** | `scripts/`、`server/`、`web/`、`deploy.sh`、`*.bat`、`requirements.txt` | **GNU GPL v3.0**（[LICENSE](LICENSE)） |
+| **文档与数据** | `docs/`、`data/`（含全部 `.cor`）、`metadata/`、`out/`、本 README | **CC BY 4.0**（[LICENSE-DOCS.md](LICENSE-DOCS.md)） |
+
+GPL-3.0 意味着：任何人分发本软件的修改版，必须同样以 GPL-3.0 开放源代码。
+CC BY 4.0 意味着：文档和数据可以复制、再分发、修改、商用，**但必须署名**并说明是否做过修改。
+
+用在论文里请引用本仓库：
 
 ```
-DPV 电化学生物传感器分析平台 (dpv-streptomycin), https://github.com/aa932406/dpv-streptomycin
+dpv-streptomycin: DPV 电化学生物传感器分析平台,
+https://github.com/aa932406/dpv-streptomycin
 ```
 
-欢迎提 issue 描述你遇到的 `.cor` 格式变体或统计口径问题 —— 这类问题往往能变成一条护栏。
+本仓库目前是**私有仓库**（不对外公开发布）。GPL-3.0 与 CC BY 4.0 的条款只在把代码 / 数据交付给第三方时生效 ——
+即：给合作者、随论文提交、或将来公开时，授权范围已经写清楚，不需要再临时决定。
+遇到 `.cor` 格式变体或统计口径问题，直接在本仓库 Issues 里记，这类问题往往能变成一条护栏。
