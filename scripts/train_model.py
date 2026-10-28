@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import pickle
 import platform
 import sys
 from pathlib import Path
@@ -123,46 +124,58 @@ def detection_block(df, metric):
             "sign": sign, "cutoff": mu + sign * 3.0 * sd}
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="train + save one quantitative DPV model")
-    ap.add_argument("--data", help="data folder: demo / data/demo / an absolute path")
-    ap.add_argument("--describe", help="print the model card of an existing .joblib and exit")
-    ap.add_argument("--mode", default="electrode", choices=["electrode", "batch"],
-                    help="what counts as one independent unit in cross-validation")
-    ap.add_argument("--input", default="auto", choices=["auto", "curves", "features"])
-    ap.add_argument("--model", default="auto", help="'auto' picks the best from the leaderboard")
-    ap.add_argument("--out", default="models", help="output folder (or a .joblib path)")
-    ap.add_argument("--order", type=int, default=4, help="baseline polynomial order")
-    ap.add_argument("--ref-frac", type=float, default=0.35, help="internal-standard QC floor")
-    ap.add_argument("--target", default="链霉素", help="what the model predicts (written into the card)")
-    ap.add_argument("--seed", type=int, default=0)
-    args = ap.parse_args()
+def train(data, mode="electrode", input="auto", model="auto", order=4,
+          ref_frac=0.35, target="链霉素", seed=0, out="models", fmt="joblib") -> dict:
+    """Train + validate + refit on everything + save.  Returns a result dict.
 
-    if args.describe:
-        describe(args.describe)
-        return
-    if not args.data:
-        ap.error("--data is required (or use --describe)")
+    {'name', 'job', 'card_path', 'card', 'log': [str], 'leaderboard': [row]}
 
-    folder = resolve_folder(args.data)
-    print("数据文件夹 :", folder)
-    df, curves, errors, grid, metric = dump.prepare(folder, order=args.order, ref_frac=args.ref_frac)
+    Raises RuntimeError (Chinese message) when there is nothing to train, so the
+    API can turn it into a 400 without the process dying.  main() is only a
+    printer around this function.
+    """
+    try:
+        return _train(data, mode=mode, input=input, model=model, order=order,
+                      ref_frac=ref_frac, target=target, seed=seed, out=out, fmt=fmt)
+    except SystemExit as exc:                      # standards()/resolve_folder() exit
+        msg = exc.code if exc.code not in (None, 0) else "训练失败"
+        raise RuntimeError(str(msg)) from None
+
+
+def _train(data, mode, input, model, order, ref_frac, target, seed, out, fmt) -> dict:
+    folder = resolve_folder(data)
+    log = ["数据文件夹 : %s" % folder]
+    df, curves, errors, grid, metric = dump.prepare(folder, order=order, ref_frac=ref_frac)
     if df is None or len(df) == 0:
-        sys.exit("这个文件夹里没有可用的 DPV 曲线。")
+        raise RuntimeError("这个文件夹里没有可用的 DPV 曲线。")
     if errors:
-        print("解析失败   : %d 个文件（已跳过）" % len(errors))
+        log.append("解析失败   : %d 个文件（已跳过）" % len(errors))
 
-    kinds = ["curves", "features"] if args.input == "auto" else [args.input]
+    # A model that predicts concentration needs at least three distinct levels:
+    # with one level every target value is identical, so any regressor either
+    # returns that constant or fits noise.  Say so, instead of letting the
+    # degeneracy guard fire later with a confusing "same number" message.
+    conc = pd.to_numeric(df["concentration_M"], errors="coerce") if "concentration_M" in df.columns else None
+    if conc is not None:
+        levels = np.unique(np.round(conc[(conc > 0) & conc.notna()].values, 20))
+        if len(levels) < 3:
+            raise RuntimeError(
+                "这个文件夹只有 %d 个不同浓度（%s），训不出浓度预测模型。"
+                "至少需要 3 个浓度、每个浓度 2-3 支电极；一天能做完的最小方案是 "
+                "空白 3 支 + 10 nM 3 支 + 1 µM 3 支 = 9 支电极。"
+                % (len(levels), " / ".join("%.3g M" % v for v in levels) if len(levels) else "一条标准点都没有"))
+
+    kinds = ["curves", "features"] if input == "auto" else [input]
     board = []
     for kind in kinds:
         X, y, groups, d = standards(df, curves, kind)
         n_units = len(set(groups))
         if n_units < 3:
-            print("跳过 %s：只有 %d 个独立单元，做不了交叉验证" % (kind, n_units))
+            log.append("跳过 %s：只有 %d 个独立单元，做不了交叉验证" % (kind, n_units))
             continue
-        res = ml.evaluate(X, y, groups, mode=args.mode, seed=args.seed)
+        res = ml.evaluate(X, y, groups, mode=mode, seed=seed)
         if res.get("error"):
-            print("跳过 %s：%s" % (kind, res["error"]))
+            log.append("跳过 %s：%s" % (kind, res["error"]))
             continue
         for row in res["models"]:
             row = dict(row)
@@ -170,22 +183,22 @@ def main() -> None:
             row["kind"] = kind
             board.append(row)
     if not board:
-        sys.exit("没有任何模型能训练：标准点太少，或者独立单元（电极/批次）不够。")
+        raise RuntimeError("没有任何模型能训练：标准点太少，或者独立单元（电极/批次）不够。")
 
     board.sort(key=lambda r: r["r2"], reverse=True)
     best = board[0]
-    if args.model != "auto":
-        hit = [r for r in board if r["name"] == args.model]
+    if model != "auto":
+        hit = [r for r in board if r["name"] == model]
         if not hit:
             names = sorted({r["name"] for r in board})
-            sys.exit("没有叫 %s 的模型；可选：%s" % (args.model, " / ".join(names)))
+            raise RuntimeError("没有叫 %s 的模型；可选：%s" % (model, " / ".join(names)))
         best = hit[0]
 
     kind = best["kind"]
     X, y, groups, d = standards(df, curves, kind)
-    print("输入       : %s（%d 条标准点 × %d 维）" % (best["set"], X.shape[0], X.shape[1]))
-    print("交叉验证   : 留一%s %d 折 → R²=%.3f  RPD=%.2f" % (
-        "电极" if args.mode == "electrode" else "批次", best["n_folds"], best["r2"], best["rpd"]))
+    log.append("输入       : %s（%d 条标准点 × %d 维）" % (best["set"], X.shape[0], X.shape[1]))
+    log.append("交叉验证   : 留一%s %d 折 → R²=%.3f  RPD=%.2f" % (
+        "电极" if mode == "electrode" else "批次", best["n_folds"], best["r2"], best["rpd"]))
 
     # ---- refit on every standard, exactly the pipeline evaluate() used -------
     # evaluate() writes "log10(C)"; comparing to "log10" silently fell back to
@@ -193,27 +206,28 @@ def main() -> None:
     # swallows every residual and the model returns one constant for everything.
     on_log = str(best.get("scale", "")).startswith("log10")
     t = ml._to_log(y) if on_log else np.asarray(y, float)
-    zoo = ml.model_zoo(args.seed)
+    zoo = ml.model_zoo(seed)
     est, param_grid = zoo[best["name"]]
-    model = ml._fit_with_grid(est, param_grid, np.asarray(X, float), t, args.seed)
+    fitted = ml._fit_with_grid(est, param_grid, np.asarray(X, float), t, seed)
 
-    in_sample = np.asarray(model.predict(np.asarray(X, float))).ravel()
+    in_sample = np.asarray(fitted.predict(np.asarray(X, float))).ravel()
     if np.std(in_sample) < 1e-9:
-        sys.exit("拟合失败：模型对每一条标准点都给出同一个数（%s）。"
-                 "这通常意味着目标变量的尺度或 epsilon 设置不对，先别存这个模型。"
-                 % ("%.3g" % in_sample[0] if len(in_sample) else "?"))
+        raise RuntimeError("拟合失败：模型对每一条标准点都给出同一个数（%s）。"
+                           "这通常意味着目标变量的尺度或 epsilon 设置不对，先别存这个模型。"
+                           % ("%.3g" % in_sample[0] if len(in_sample) else "?"))
     ss_res = float(np.sum((in_sample - t) ** 2))
     ss_tot = float(np.sum((t - t.mean()) ** 2)) or 1.0
     in_r2 = 1.0 - ss_res / ss_tot
 
     name = "%s_%s_%s" % (folder.name, "curves" if kind == "curves" else "features",
                          SLUG.get(best["name"], "model"))
-    out = Path(args.out)
-    if out.suffix == ".joblib":
-        job_path = out
+    out_p = Path(out)
+    if out_p.suffix in (".joblib", ".pkl"):
+        job_path = out_p
+        fmt = "pkl" if out_p.suffix == ".pkl" else "joblib"
     else:
-        out.mkdir(parents=True, exist_ok=True)
-        job_path = out / (name + ".joblib")
+        out_p.mkdir(parents=True, exist_ok=True)
+        job_path = out_p / (name + (".pkl" if fmt == "pkl" else ".joblib"))
 
     levels = sorted({float(v) for v in np.round(y, 20)})
     detect = detection_block(df, metric)
@@ -221,18 +235,18 @@ def main() -> None:
         "format": MODEL_FORMAT,
         "created": datetime.datetime.now().isoformat(timespec="seconds"),
         "name": name,
-        "target": args.target,
+        "target": target,
         "model": best["name"],
         "input": "curves" if kind == "curves" else "features",
         "feature_keys": None if kind == "curves" else list(ml.FEATURE_KEYS),
         "grid": [float(v) for v in np.asarray(grid, float)] if kind == "curves" else None,
-        "baseline_order": int(args.order),
-        "ref_frac": float(args.ref_frac),
+        "baseline_order": int(order),
+        "ref_frac": float(ref_frac),
         "metric": metric,
         "y_scale": "log10" if on_log else "linear",
         "in_sample_r2": float(in_r2),
         "cv": {
-            "mode": args.mode,
+            "mode": mode,
             "n_folds": best["n_folds"],
             "r2": best["r2"],
             "rmse": best["rmse"],
@@ -248,7 +262,7 @@ def main() -> None:
             "n_standards": int(len(y)),
             "n_levels": len(levels),
             "n_units": int(len(set(groups))),
-            "unit": "electrode" if args.mode == "electrode" else "batch",
+            "unit": "electrode" if mode == "electrode" else "batch",
             "levels_M": levels,
             "range_M": [min(levels), max(levels)],
         },
@@ -262,29 +276,69 @@ def main() -> None:
                         for r in board[:8]],
     }
 
-    import joblib
-    joblib.dump({"card": card, "model": model}, job_path)
+    blob = {"card": card, "model": fitted}
+    if fmt == "pkl":
+        with job_path.open("wb") as fh:
+            pickle.dump(blob, fh, protocol=5)
+    else:
+        import joblib
+        joblib.dump(blob, job_path)
     card_path = job_path.with_suffix(".json")
     card_path.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print("样本内 R²  : %.3f（只用来确认模型没有退化成常数，不是成绩）" % in_r2)
-    print()
-    print("已保存     :", job_path, "(%.1f KB)" % (job_path.stat().st_size / 1024))
-    print("模型卡     :", card_path)
-    print("适用范围   : %.2e - %.2e M（%d 个浓度、%d 条标准点、%d 个独立单元）" % (
+    log.append("样本内 R²  : %.3f（只用来确认模型没有退化成常数，不是成绩）" % in_r2)
+    log.append("已保存     : %s (%.1f KB)" % (job_path, job_path.stat().st_size / 1024))
+    log.append("模型卡     : %s" % card_path)
+    log.append("适用范围   : %.2e - %.2e M（%d 个浓度、%d 条标准点、%d 个独立单元）" % (
         card["train"]["range_M"][0], card["train"]["range_M"][1],
         len(levels), len(y), card["train"]["n_units"]))
     if best.get("factor"):
-        print("报告误差   : 约 %.1f 倍（报 100 nM 时真值大致在 %.0f - %.0f nM）" % (
+        log.append("报告误差   : 约 %.1f 倍（报 100 nM 时真值大致在 %.0f - %.0f nM）" % (
             best["factor"], 100 / best["factor"], 100 * best["factor"]))
     if detect:
-        print("检出阈值   : %s 空白 %.3f ± %.3f（n=%d）→ 判「检出」需 %s %.3f" % (
+        log.append("检出阈值   : %s 空白 %.3f ± %.3f（n=%d）→ 判「检出」需 %s %.3f" % (
             detect["metric"], detect["mean"], detect["sd"], detect["n_blanks"],
             "≥" if detect["sign"] > 0 else "≤", detect["cutoff"]))
     else:
-        print("检出阈值   : 没有足够的空白（<3 条），模型只能给浓度、不能判「有没有」")
+        log.append("检出阈值   : 没有足够的空白（<3 条），模型只能给浓度、不能判「有没有」")
+
+    return {"name": name, "job": str(job_path), "card_path": str(card_path),
+            "card": card, "log": log, "leaderboard": board, "format": fmt}
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="train + save one quantitative DPV model")
+    ap.add_argument("--data", help="data folder: demo / data/demo / an absolute path")
+    ap.add_argument("--describe", help="print the model card of an existing model file and exit")
+    ap.add_argument("--mode", default="electrode", choices=["electrode", "batch"],
+                    help="what counts as one independent unit in cross-validation")
+    ap.add_argument("--input", default="auto", choices=["auto", "curves", "features"])
+    ap.add_argument("--model", default="auto", help="'auto' picks the best from the leaderboard")
+    ap.add_argument("--out", default="models", help="output folder (or a .joblib/.pkl path)")
+    ap.add_argument("--format", default="joblib", choices=["joblib", "pkl"])
+    ap.add_argument("--order", type=int, default=4, help="baseline polynomial order")
+    ap.add_argument("--ref-frac", type=float, default=0.35, help="internal-standard QC floor")
+    ap.add_argument("--target", default="链霉素", help="what the model predicts (written into the card)")
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+
+    if args.describe:
+        describe(args.describe)
+        return
+    if not args.data:
+        ap.error("--data is required (or use --describe)")
+
+    try:
+        res = train(args.data, mode=args.mode, input=args.input, model=args.model,
+                    order=args.order, ref_frac=args.ref_frac, target=args.target,
+                    seed=args.seed, out=args.out, fmt=args.format)
+    except RuntimeError as exc:
+        sys.exit(str(exc))
+
+    for line in res["log"]:
+        print(line)
     print()
-    print("下一步     : python scripts/predict_with_model.py --model %s --data <新样品的文件夹>" % job_path)
+    print("下一步     : python scripts/predict_with_model.py --model %s --data <新样品的文件夹>" % res["job"])
 
 
 def _sklearn_version() -> str:
@@ -296,11 +350,15 @@ def _sklearn_version() -> str:
 
 
 def describe(path: str) -> None:
-    import joblib
     p = Path(path)
     if not p.is_file():
         sys.exit("找不到模型文件：%s" % path)
-    blob = joblib.load(p)
+    if p.suffix == ".pkl":
+        with p.open("rb") as fh:
+            blob = pickle.load(fh)
+    else:
+        import joblib
+        blob = joblib.load(p)
     card = blob.get("card", {})
     print(json.dumps(card, ensure_ascii=False, indent=2))
     print()

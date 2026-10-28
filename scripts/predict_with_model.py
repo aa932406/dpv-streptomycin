@@ -56,25 +56,31 @@ def resolve(arg: str) -> Path:
     sys.exit("找不到数据文件夹：%s" % arg)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="predict new .cor files with a saved model")
-    ap.add_argument("--model", required=True, help="path to a .joblib written by train_model.py")
-    ap.add_argument("--data", required=True, help="folder holding the new .cor files")
-    ap.add_argument("--out", default=None, help="CSV path (default: out/predictions_<model>_<folder>.csv)")
-    ap.add_argument("--show", action="store_true", help="print the model card first")
-    args = ap.parse_args()
-
+def load_blob(path):
+    """Load a model saved by train_model.py -- .joblib (joblib) or .pkl (plain pickle)."""
+    p = Path(path)
+    if not p.is_file():
+        raise RuntimeError("找不到模型文件：%s" % path)
+    if p.suffix == ".pkl":
+        import pickle
+        with p.open("rb") as fh:
+            return pickle.load(fh)
     import joblib
-    blob = joblib.load(args.model)
+    return joblib.load(p)
+
+
+def predict(model_path, items, verbose: bool = False) -> dict:
+    """Read raw .cor bytes with a saved model.
+
+    items   : [(filename, bytes)] -- in memory, so the API can feed uploads.
+    returns : {'card', 'rows': [...], 'bad': [{'file','error'}], 'log': [str]}
+    """
+    blob = load_blob(model_path)
     card = blob.get("card") or {}
     model = blob["model"]
-    if args.show:
-        import json
-        print(json.dumps(card, ensure_ascii=False, indent=2))
-        print()
-
+    log = []
     if card.get("format") != "dpv-model/1":
-        print("警告：模型卡格式是 %r，按当前版本读取" % card.get("format"))
+        log.append("警告：模型卡格式是 %r，按当前版本读取" % card.get("format"))
 
     grid = np.asarray(card.get("grid") or [], float)
     order = int(card.get("baseline_order", 4))
@@ -85,15 +91,10 @@ def main() -> None:
     det = card.get("detection") or {}
     rel = cv.get("rel_err_pct")
 
-    folder = resolve(args.data)
-    files = sorted(folder.glob("*.cor"))
-    if not files:
-        sys.exit("这个文件夹里没有 .cor 文件：%s" % folder)
-
     rows, bad = [], []
-    for f in files:
+    for name, raw in items:
         try:
-            rec = core.analyse_trace(f.name, f.read_bytes(), order=order, grid=grid)
+            rec = core.analyse_trace(name, raw, order=order, grid=grid)
             row, y, _ = rec
             if kind == "curves":
                 x = np.asarray(y, float).reshape(1, -1)
@@ -115,15 +116,45 @@ def main() -> None:
                 mv = float(row.get(det["metric"], np.nan))
                 if np.isfinite(mv):
                     hit = bool((mv - det["cutoff"]) * det["sign"] > 0)
-            rows.append({"file": f.name, "detected": hit, "pred_M": conc, "lo_M": lo, "hi_M": hi,
+            rows.append({"file": name, "detected": hit, "pred_M": conc, "lo_M": lo, "hi_M": hi,
                          "group": row.get("group", ""), "I_MB": row.get("I_MB"),
                          "I_ref": row.get("I_ref"), "ratio": row.get("ratio")})
         except Exception as exc:
-            bad.append({"file": f.name, "error": str(exc)})
+            bad.append({"file": name, "error": str(exc)})
+
+    return {"card": card, "rows": rows, "bad": bad, "log": log}
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="predict new .cor files with a saved model")
+    ap.add_argument("--model", required=True, help="path to a .joblib/.pkl written by train_model.py")
+    ap.add_argument("--data", required=True, help="folder holding the new .cor files")
+    ap.add_argument("--out", default=None, help="CSV path (default: out/predictions_<model>_<folder>.csv)")
+    ap.add_argument("--show", action="store_true", help="print the model card first")
+    args = ap.parse_args()
+
+    folder = resolve(args.data)
+    files = sorted(folder.glob("*.cor"))
+    if not files:
+        sys.exit("这个文件夹里没有 .cor 文件：%s" % folder)
+
+    try:
+        res = predict(args.model, [(f.name, f.read_bytes()) for f in files])
+    except RuntimeError as exc:
+        sys.exit(str(exc))
+    card, rows, bad = res["card"], res["rows"], res["bad"]
+    if args.show:
+        import json
+        print(json.dumps(card, ensure_ascii=False, indent=2))
+        print()
+
+    cv = card.get("cv") or {}
+    factor = cv.get("factor")
+    det = card.get("detection") or {}
+    rng = card.get("train", {}).get("range_M") or [np.nan, np.nan]
 
     print("模型       : %s（%s / %s）" % (card.get("name", args.model), card.get("model"), card.get("input")))
-    print("适用范围   : %s - %s" % (fmt_conc(card.get("train", {}).get("range_M", [np.nan])[0]),
-                                 fmt_conc(card.get("train", {}).get("range_M", [np.nan, np.nan])[1])))
+    print("适用范围   : %s - %s" % (fmt_conc(rng[0]), fmt_conc(rng[1])))
     print("验证成绩   : R²=%.3f  RPD=%.2f  %s" % (
         cv.get("r2", float("nan")), cv.get("rpd", float("nan")),
         ("误差约 %.1f 倍" % factor) if factor else ""))
