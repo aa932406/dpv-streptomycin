@@ -1,249 +1,234 @@
-# 链霉素 DPV 检测平台
+# DPV 电化学生物传感器分析平台
 
-把辰华 CHI 的差分脉冲伏安（DPV）原始曲线，变成食品样品里链霉素**「有没有、有多少」**的结论 ——
-附统计检验、校准曲线、定量预测模型，以及一个能部署到服务器的 Web 界面。
+**把辰华 CHI 的 `.cor` 原始曲线，变成「检出 / 未检出 + 浓度 + 置信区间」的完整流水线。**
+解析 → 基线校正 → 找峰 → 统计检验 → 校准曲线与 LOD → 机器学习定量 → 可发表的报告，全部带**按电极 / 按批次切分的诚实验证**。
 
-体系：**Au@SH-MIL-101(Fe)**（金纳米 + 巯基化 MIL-101(Fe) MOF）修饰电极 ／ 三螺旋 DNA 开关 ／
-双发夹探针 H1·H2（末端标亚甲基蓝 MB）／ 核酸外切酶 III（Exo III）。
+> An open-source toolkit for electrochemical biosensor data (DPV / SWV / CV from CHI instruments).
+> Parses raw `.cor` files, does baseline correction and peak picking, runs the statistics,
+> builds calibration curves with proper LOD, trains validated regression models, and serves it all
+> through a self-hostable web UI. Validation is grouped by **electrode** and **batch**, never by
+> individual scan — because that is where most published numbers quietly break.
 
----
+![结论页](docs/images/hero-verdict.png)
 
-## 1. 检测原理
-
-```
-① 链霉素 + 三螺旋 DNA 开关  →  释放触发 DNA 单链
-② 触发链打开 H1、H2         →  杂交成 dsDNA 长链，MB 被富集到电极附近
-③ 加 Exo III                →  从双链末端切割，MB 释放、DNA 被降解
-④ DPV 扫描                  →  读出两个峰
-```
-
-设计意图是：**链霉素越多 → 切得越多 → 游离 MB 越多 → MB 峰越高**（信号开启型）。
-同时 +0.35 V 处 MOF 自身的 Fe(III)/Fe(II) 峰被当作**内参**，用来扣掉电极面积、修饰量的波动。
+<p align="center"><sub>「结论」页：每个未知样品一张卡 —— 检出 / 未检出 / 无法判定，附浓度和 95% 区间。给不出浓度时会说明缺什么，而不是编一个数。</sub></p>
 
 ---
 
-## 2. 手上的数据
+## 这是什么
 
-| 项 | 数量 |
-|---|---|
-| 日期文件夹 | 15 个（2026-06-25 → 2026-10-10） |
-| `.cor` 原始文件 | 277 |
-| 可用 DPV 曲线 | 220（其余是 CV / 溶出 / 空文件） |
-| **独立电极** | **91 支**（`_ReStart` 是同一支电极重复扫描，不重复计数） |
-| 组名 | 83 个 |
+一个**自托管**的数据分析平台。你手上是一堆电化学工作站导出的曲线文件，想知道样品里有没有目标物、有多少；
+它负责把这堆文件变成下面这张表：
 
-另有 3 个非真实数据集：`demo`（合成，单批次）、`demo_batches`（合成，3 批次带偏移）、
-`cd36_ngml`（外部数据集 miralab-ai/biosensors-AI，CD36 蛋白，12 浓度 × 5 重复，只作外部基准）。
-
-> 这批数据的价值不在数量，在于**「同一支电极反复扫」被如实记成了 2–3 条曲线**，
-> 所以能算出电极内 / 电极间的重复性 —— 大多数论文没这一步。
-
----
-
-## 3. 数据说了三件事
-
-### 3.1 两个峰分别是谁的
-
-| 电位 | 归属 | 依据 |
-|---|---|---|
-| **+0.35 V** | MIL-101(Fe) 的 Fe(III)/Fe(II) | 裸电极 / 无 MB 的样品也有，1.0–2.5 µA |
-| **−0.34 V** | 亚甲基蓝 MB | 含 MB 的样品峰位高度一致；裸电极漂到 −0.38 ~ −0.48 |
-
-麻烦在于：**两峰只差 70–110 mV，而 DPV 峰宽就有 80–100 mV**，20 mV 步进下严重重叠。
-双高斯解卷积在 20 mV 曲线上不稳定（峰位在样本间乱跳）；只有 5 mV 步进那条能稳定分开。
-
-### 3.2 加 Exo III 之后信号掉了 7.4 倍 —— 和设计方向相反
-
-| 组 | 链霉素 | Exo III | MB/内参 比值 |
+| 文件 | 判定 | 浓度 | 95% 区间 |
 |---|---|---|---|
-| material（只有 MOF） | — | — | 1.27 ± 0.48 |
-| material + MB（游离 MB） | — | — | 0.59 ± 0.30 |
-| target_noEnz（有靶标，无酶） | 1 µM | — | **2.21 ± 0.27** |
-| target+Enz（有靶标，有酶） | 1 µM | 0.025 U/mL | **0.30 ± 0.32** |
+| sample_U1.cor | 检出 | 19.5 nM | 4.9 – 78 nM |
+| sample_U2.cor | 检出 | 479 pM | 273 pM – 1.99 nM |
+| blank_01.cor | 未检出 | — | — |
 
-按设计应该「加酶 → MB 释放 → 峰变高」，实测是**掉 7.4 倍**（p = 1.5e-06 / 1.9e-06）。
-三条证据指向同一个解释 —— **电极读的是吸附在 DNA 上的 MB，不是游离的 MB**：
+以及一份可以贴进论文 / 交给审稿人的报告：图、统计表、校准参数、模型指标、原始数据，打包成 zip。
 
-1. 游离 MB（0.59）比裸电极（1.27）还低 → 电极抓不住游离 MB；
-2. 有 DNA 时（2.21）是游离 MB 的 3.7–4.2 倍 → 信号来自「MB 挂在 DNA 上贴电极」；
-3. 把 DNA 切碎（0.30）信号归零 → 载体没了，MB 飘走。
-
-这不是 bug，是**电极界面缺一个富集层**（文献里常用十二硫醇单分子层做 immobilization-free 富集）。
-
-### 3.3 变异的 56% 来自「哪一天做的」
-
-对 195 条曲线 / 87 支电极做嵌套方差分解（log 尺度）：
-
-| 响应 | 批次 | 条件 | 电极 | 扫描 |
-|---|---|---|---|---|
-| **ratio（MB/内参）** | **55.8%** | 24.5% | 4.1% | 15.7% |
-| I_MB | 26.1% | 50.1% | 1.3% | 22.5% |
-| I_ref | 39.6% | 26.5% | 12.7% | 21.3% |
-
-同一支电极连扫两次，CV 中位数 **48%**；同一条件不同电极，CV 中位数 **43%** ——
-测量重复性和制备重复性同量级。后果：
-
-| 口径 | 判别力 |
-|---|---|
-| 跨批次合并 AUC | **0.51**（95% CI 0.27–0.77，等于瞎猜） |
-| 同一批次内部 AUC | 0.73 |
-| 留一批次（阈值用其他批次定） | 20% / 40% / 43% / 50%，平均 **38%**（低于 50%） |
-
-而且方向会翻转：20260709 有靶标**更高**（5.41 vs 2.84），20260926 / 20260928 **更低**（0.35 vs 0.81 / 5.32 vs 7.93）。
-→ **换模型解决不了这件事**。批次偏移是共模的，只能用「当天标定」扣掉。
+**给谁用**：做电化学传感器（适配体 / 免疫 / 酶 / MIP）的研究生和分析化学实验室。
+**不假设**：不假设你的体系是链霉素，不假设你有浓度梯度，也不假设你的数据干净 ——
+条件不够时它会明确说「这批数据回答不了这个问题」，并列出缺什么。
 
 ---
 
-## 4. 现在能回答什么，不能回答什么
+## 它解决什么问题
 
-| 问题 | 状态 | 说明 |
+| 常见做法 | 问题 | 这个工具怎么做 |
 |---|---|---|
-| 这批数据里两组有没有差别？ | ✅ 能 | ANOVA + 效应量；但注意 14/15 个文件夹每条件只有 1 支电极，p 值是伪重复 |
-| 一个未知样品「有没有链霉素」？ | 🟡 同批次内可以 | 20261010：留一电极平衡准确率 **59.5%**，置换检验 p = 0.0099；跨批次掉到 0.51 |
-| 「有多少」？ | ❌ 不能 | **15 个真实文件夹全部没有浓度梯度** —— 14 个一条标准点都没有，20261010 有 13 条但全是 1 µM |
-| 能不能跨天用同一个阈值？ | ❌ 不能 | 批次占 56% 方差，留一批次准确率 38% |
-| 平台能不能算浓度？ | ✅ 能，等数据 | 校准、LOD/LOQ、9 种预测模型、按批标定都已实现并跑通（用合成数据验证：R² = 0.936、RPD = 4.07） |
+| 工作站软件导出 Excel，手画校准线 | 只能画图，没有统计、没有验证 | 全流程自动化，一条命令 / 一个网页 |
+| 把每一条扫描当独立样本 | **伪重复**：同一支电极扫 3 次算 3 个 n，p 值和 R² 全部虚高 | 默认以**电极**为独立单位，留一电极交叉验证 |
+| 用 `LOD = 3.3·Syx/b` | 隐含校准线过原点，截距在别处时算出 10² M 这种荒谬值 | 用**空白 3σ 反算**浓度，空白不足 3 条就拒绝给数 |
+| 报「交叉验证准确率 84%」 | 同一支电极的曲线同时出现在训练集和测试集 | 留一电极 + **电极级置换检验**（给零分布和 p 值） |
+| 不同日期做的数据混在一起建模 | 批次效应被当成生物学信号 | 方差分解量化批次占比，支持**按批标定**和留一批次验证 |
+| 只报 R² | 浓度跨 5 个数量级时 R² 会骗人 | 同时报 RMSE、MAE、**RPD**、误差倍数、每折离散 |
 
 ---
 
-## 5. 平台能做什么
+## 界面
 
-八个页面（`web/`，Next.js 15 + Tailwind 4 + recharts；后端 FastAPI 包 `scripts/analysis_core.py`）：
+七个功能页 + 一个数据页，全部在同一个 Web 应用里，不需要装客户端。
 
-| 页 | 内容 |
+| | |
 |---|---|
-| **数据** | 可编辑表格：分组 / 电极 / 浓度 / 批次 / 标签 / 角色，保存回 `data/<文件夹>/metadata.csv` |
-| **结论** | 每个未知样品一张卡：检出 / 未检出 / 无法判定 + 浓度 + 95% 区间；没有浓度梯度时自动切成「定性筛查」面板 |
-| **曲线** | 基线校正后的全部曲线、均值 ± SD、I_MB vs I_ref 散点 |
-| **统计** | 组间汇总、ANOVA、Tukey HSD、效应量、PCA、箱线图 |
-| **校准** | 校准曲线 + LOD/LOQ + 逆回归置信区间；多批次时自动启用**按批标定** |
-| **建模** | 分类（LDA / 随机森林）× 输入（整条曲线 / 手工特征），**留一电极**交叉验证 + 电极级置换检验 |
-| **预测** | 9 种回归模型 × 2 套输入（R² / RMSE / RPD / 学习曲线 / 置换重要性）；**训练并下载模型**、模型仓库、上传新样品直接出浓度 |
-| **导出** | 一键 zip：HTML 报告 + Word + JSON + CSV + PNG + 原始 `.cor` |
+| ![数据页](docs/images/data.png) | ![曲线页](docs/images/curves.png) |
+| **数据**：可编辑表格（分组 / 电极 / 浓度 / 批次 / 标签），直接保存回 `metadata.csv` | **曲线**：基线校正后的全部曲线、均值 ± SD、双峰比值散点 |
+| ![统计页](docs/images/stats.png) | ![预测页](docs/images/predict.png) |
+| **统计**：ANOVA、Tukey HSD、效应量 η²、PCA、箱线图 | **预测**：9 种回归模型 × 2 套输入，R²/RPD/学习曲线/特征重要性 |
+| ![模型工作室](docs/images/model-studio.png) | |
+| **训练并下载模型**：浏览器里点一下，后台训练、轮询进度、下载 `.joblib`；再用它给新样品打分 | |
 
-模型可以存盘带走：`models/<文件夹>_<curves|features>_<算法>.joblib` + 同名 `.json` 模型卡
-（含训练集范围、交叉验证指标、空白分布和检出阈值）。调用有三种方式：界面 / HTTP / 命令行。
+另外三页：**结论**（每样品判定）、**校准**（校准曲线 + LOD/LOQ + 逆回归区间）、**导出**（zip 报告）。
 
 ---
 
-## 6. 快速开始
+## 快速开始
 
-**双击 `run_web.bat`** —— 自动建虚拟环境、装依赖、构建前端，浏览器跳到 <http://127.0.0.1:3000/verdict>。
-首次几分钟，之后几十秒。
-
-想看完整流程（含浓度、校准、预测）：界面上点「生成演示数据」，会造一套带浓度梯度的合成数据。
-真实数据目前只能走到「统计」和「定性筛查」—— 因为没有浓度。
-
-命令行：
+### 方式一：网页界面（推荐，零命令行）
 
 ```bash
-python scripts/dpv_pipeline.py                 # 自动选 data/ 下最新日期文件夹，输出到 out/<日期>/
-python scripts/dpv_pipeline.py --data 20261010  # 指定日期
-```
-
----
-
-## 7. 换一批数据 / 跑校准 / 训练模型
-
-```bash
-# 换数据：放进 data/20261105/ 即可，脚本自动选最新日期，不会覆盖旧结果
-# 校准（需要 ≥3 个浓度、≥3 条空白）
-python scripts/ratiometric_calibration.py --meta metadata/metadata.csv
-
-# 跨批次（方差来源 / 重复性 / 留一批次迁移）
-python scripts/cross_batch.py
-
-# 训练一个能存盘的模型
-python scripts/train_model.py --data data/demo            # → models/demo_curves_gpr.joblib
-python scripts/predict_with_model.py --model models/demo_curves_gpr.joblib --data <新样品文件夹>
-```
-
-**一天能做完的最小出浓度实验**：空白 3 支 + 10 nM 3 支 + 1 µM 3 支 = **9 支电极**。
-要能发表 / 要能做留一批次验证，见 [docs/数据采集方案_ML.md](docs/数据采集方案_ML.md)（30 / 60 / 150 支三档）。
-
----
-
-## 8. 目录结构（简）
-
-```
-data/<日期>/            原始 .cor，按测量日期分文件夹（15 个日期 + demo / demo_batches / cd36_ngml）
-scripts/                全部 Python：analysis_core（数学）/ dump_ui_json（API 契约）/ ml_models /
-                        train_model / predict_with_model / dpv_pipeline / cross_batch / cv_peaks / area_calc …
-server/app.py           FastAPI：/api/analyse /api/regression /api/metadata /api/report
-                        /api/train（后台任务）/api/train/{id} /api/models /api/predict
-web/                    Next.js 前端，app/(main)/ 下八个页面
-metadata/               元数据表（浓度 / 批次 / 标签）
-out/<日期>/             分析输出（图 + CSV + report.json）
-docs/                   报告与方案，见下
-```
-
-完整清单和每个文件干什么，见 [docs/使用说明_Web版.md](docs/使用说明_Web版.md)。
-
----
-
-## 9. `.cor` 格式的两个坑
-
-辰华 CHI 的 `.cor` 扩展名像二进制，实际是纯文本：
-
-```
-CORRW ASCII
-ID_DiffPulseVA
-Data:2026-10-10 Time:20:01:42
-ExpParmas:...&-&InitialE=0.8&-&FinalE=-0.8&-&IncE=0.02&-&...
-E(V)		i(A/cm^2)		T(s)
-End Comments
--0.800000	-1.234e-05	1.2      ← 数据在 "End Comments" 之后
-```
-
-1. **数据行在 `End Comments` 之后**（早解析器在 "End" 处 break，结果 0 行）；
-2. **用 `latin1` 解码**（文件里的路径字段是 GBK 字节，按 UTF-8 读会崩）。
-
-另外：有的导出**完全没有表头**（第一行就是数字），要按 DPV 兜底，否则会被当成「别的技术」丢掉 ——
-20260625 / 20260627 曾因此少算 4 条曲线。
-
----
-
-## 10. 已知问题
-
-- **没有浓度梯度** —— 这是当前最大的缺口。15 个真实文件夹全部算不出浓度，预测页会如实报错而不是给假数字。
-- **每条件只有 1 支电极** —— 14/15 个文件夹如此，留一电极分类在这些文件夹上数学上必然 0%，界面会直接警告。
-- **缺 3 个对照**：无靶标 + 无酶（空白）、**无靶标 + 有酶**、非特异性靶标。
-  其中「无靶标 + 有酶」最关键 —— 没有它分不清 0.30 是靶标特异还是酶的本底。
-- **Exo III 用量存疑**：0.025 U/mL 比文献下限还低约 2000 倍，可能是 0.025 U/µL 的笔误；若真是前者，7.4 倍信号下降不太可能来自酶切。
-- 老文件夹扫描窗口各不相同（0.09→−0.50、0.19→−0.20、0.60→−0.59 …），窗口盖不到 MB 峰或内参峰时，
-  界面会自动换响应指标、自动跳过内参 QC 并说明原因 —— 不会静默给出假峰高。
-
----
-
-## 11. 文档索引
-
-| 想了解 | 看 |
-|---|---|
-| 界面怎么用 | [docs/使用说明_Web版.md](docs/使用说明_Web版.md) |
-| 数据说了什么（机理） | [docs/分析说明_v3_机理.md](docs/分析说明_v3_机理.md) |
-| 15 个文件夹各自什么情况 | [docs/数据清单.md](docs/数据清单.md) |
-| 17 个文件夹全量跑一遍的结果 | [docs/全量检测报告.md](docs/全量检测报告.md) |
-| 跨批次为什么不能用 | [docs/跨批次分析.md](docs/跨批次分析.md) |
-| 还要补多少数据 | [docs/数据采集方案_ML.md](docs/数据采集方案_ML.md) |
-| 怎么训练 / 调用模型 | [docs/训练与调用模型.md](docs/训练与调用模型.md) |
-| 和 Food Chem 那几篇的差距 | [docs/论文对照_预测模型.md](docs/论文对照_预测模型.md) |
-| 从当前状态到可用模型的路线 | [docs/模型完善路线.md](docs/模型完善路线.md) |
-| 实验怎么做（含操作卡） | [docs/实验方案_链霉素.md](docs/实验方案_链霉素.md)、[docs/CV测面积_操作卡.md](docs/CV测面积_操作卡.md) |
-| 部署到服务器 | [docs/部署说明.md](docs/部署说明.md) |
-
-其余（历史版本 / 专项）：[分析说明.md](docs/分析说明.md)（第一轮 Node 版）、[分析说明_v2.md](docs/分析说明_v2.md)（第二轮完整统计）、[ML缺口.md](docs/ML缺口.md)（277→220→91 四级漏斗审计）、[外部数据验证.md](docs/外部数据验证.md)（CD36 数据集基准）、[散点图怎么读.md](docs/散点图怎么读.md)、[使用说明_Streamlit版.md](docs/使用说明_Streamlit版.md)（旧界面）、[运行说明.md](docs/运行说明.md)（Windows 细节）。
-
----
-
-## 12. 部署到 Linux 服务器
-
-```bash
-git clone https://<用户名>:<token>@github.com/aa932406/dpv-streptomycin.git
+git clone https://github.com/aa932406/dpv-streptomycin.git
 cd dpv-streptomycin
-sudo bash deploy.sh          # 装到 /opt/dpv，对外 3000
+run_web.bat          # Windows：双击即可，自动建环境、装依赖、构建前端
 ```
 
-脚本自动装 python3 / Node 20、建 venv、`npm run build`、写两个 systemd 服务并自检。
-**API 只听 127.0.0.1:8000，浏览器只跟 Next 的 3000 说话** —— 对外只需开一个端口。
-常用参数：`--dir /srv/dpv`、`--web-port 8080`、`--no-systemd`、`--no-demo`。
-详见 [docs/部署说明.md](docs/部署说明.md)。
+Linux / macOS：
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd web && npm install && npm run build && cd ..
+.venv/bin/python -m uvicorn server.app:app --port 8000 &     # API
+cd web && npm run start &                                    # 前端 → http://127.0.0.1:3000
+```
+
+打开页面后点侧栏的「**生成演示数据**」，立刻有一套带浓度梯度的合成数据可以走完整流程
+（真实数据往往没有浓度梯度，见下面的「参考应用」）。
+
+### 方式二：命令行 / 当库用
+
+```bash
+python scripts/dpv_pipeline.py --data data/20261010     # 统计 + 出图 → out/20261010/
+python scripts/ratiometric_calibration.py --meta metadata/metadata.csv   # 校准 + LOD
+python scripts/cross_batch.py                           # 跨批次：方差来源 / 重复性 / 留一批次
+python scripts/train_model.py --data data/demo          # 训练 → models/*.joblib
+python scripts/predict_with_model.py --model models/x.joblib --data <新样品文件夹>
+```
+
+```python
+import sys; sys.path.insert(0, "scripts")
+from dpv_pipeline import parse_cor, baseline_envelope, resample, GRID
+from analysis_core import analyse_trace, build_table, fit_calibration
+
+row, y, icorr = analyse_trace("sample.cor", open("sample.cor","rb").read())
+print(row["ratio"], row["I_MB"], row["I_ref"])
+```
+
+### 方式三：HTTP API
+
+```bash
+curl "http://127.0.0.1:8000/api/analyse?folder=20261010"     # 全部结果（JSON）
+curl "http://127.0.0.1:8000/api/regression?folder=demo"       # 模型对比
+curl -X POST http://127.0.0.1:8000/api/train -H 'Content-Type: application/json' \
+     -d '{"folder":"demo"}'                                   # 后台训练 → 返回 job_id
+curl "http://127.0.0.1:8000/api/train/<job_id>"               # 轮询
+```
+
+---
+
+## 支持的数据
+
+- **辰华 CHI** `.cor`（文本格式，DPV / SWV / CV / 溶出伏安都能读；同一文件夹里混着多种技术也能自动分开）
+- 不同日期文件夹的扫描窗口不同（0.09→−0.50、0.19→−0.20、0.60→−0.59 …）也没关系：
+  窗口盖不到目标峰或内参峰时，自动换响应指标、自动跳过内参 QC，并在页面上说明原因
+- 元数据（浓度 / 批次 / 电极 / 标签）写在 `metadata.csv`，也可以在界面里填
+
+`.cor` 有两个坑，代码已经处理：数据行在 `End Comments` **之后**；文件要用 `latin1` 解码。
+还有的导出完全没有表头，按 DPV 兜底，否则会被当成「别的技术」丢掉。
+
+---
+
+## 方法学：这个工具凭什么值得信
+
+这是整个项目最在意的部分。默认行为全部选**保守**的那一边：
+
+- **独立单位是电极，不是扫描** —— 同一支电极重复扫（`_ReStart`）算一次
+- **留一电极 / 留一批次交叉验证**，报告里同时给出瞎猜水平和样本量
+- **置换检验**：按电极打乱标签重跑 N 次，给出零分布和 p 值（而不是只报一个准确率）
+- **平衡准确率**：类别不平衡时，原始准确率会被大类主导（演示数据里原始 65% 而平衡只有 28%，低于瞎猜）
+- **LOD 用空白 3σ 反算**，空白 < 3 条直接拒绝；结果超出校准范围 10 倍也拒绝，不给假数字
+- **按批标定**：多批次时每批用自己的标准点定截距（共享斜率），并报留一批次 RMSE
+- **模型卡**：训练出的模型带适用范围、交叉验证指标、空白分布和检出阈值，脱离数据也能审计
+
+---
+
+## 参考应用：链霉素适配体传感器
+
+仓库里的真实数据来自一个具体课题 —— 用 **Au@SH-MIL-101(Fe)** 修饰电极、
+三螺旋 DNA 开关 + 双发夹探针（末端标亚甲基蓝）+ 核酸外切酶 III，检测食品中的**链霉素**。
+这部分既是本工具的用例，也是一份**诚实的阴性结果**（详细分析见 [docs/分析说明_v3_机理.md](docs/分析说明_v3_机理.md)）：
+
+| 发现 | 数字 |
+|---|---|
+| 两个峰只差 70–110 mV，而峰宽就有 80–100 mV | 20 mV 步进下严重重叠，需要 5 mV 或解卷积 |
+| 加 Exo III 后信号**掉 7.4 倍**，与「信号开启」的设计方向相反 | 2.21 → 0.30（p ≈ 1.5e-06） |
+| 电极读的是吸附在 DNA 上的 MB，不是游离 MB | 游离 MB 0.59 < 裸电极 1.27；切碎 DNA 后 0.30 |
+| 变异的 **56%** 来自「哪一天做的」 | 跨批 AUC 0.51，同批 0.73，留一批次 38% |
+| 15 个真实数据集**全部没有浓度梯度** | 所以一个浓度也算不出来（工具会如实说明） |
+
+277 个 `.cor` → 220 条可用曲线 → **91 支独立电极**。数据本身没问题，缺的是实验设计
+（见 [docs/数据采集方案_ML.md](docs/数据采集方案_ML.md)：一天能做完的最小出浓度实验是 **9 支电极**）。
+
+---
+
+## 项目结构
+
+```
+scripts/            Python 核心（不依赖界面，可单独 import）
+  dpv_pipeline.py     解析 .cor、基线校正、峰特征、ANOVA/Tukey/PCA、LDA/RF
+  analysis_core.py    界面用的全部数学：QC、校准、逆回归、判定、置换检验、按批标定
+  ml_models.py        9 种回归模型 × 2 套输入（含 RBF-SVR / BP-ANN / GPR），留一电极
+  train_model.py      训练并存盘（.joblib / .pkl + 模型卡 .json）
+  predict_with_model.py  加载模型 → 新样品判定 + 浓度 + 区间
+  cross_batch.py      跨批次方差分解、重复性、留一批次迁移
+  cv_peaks.py / area_calc.py  CV 峰分析、Randles–Ševčík 电极面积
+  dump_ui_json.py     把分析结果导成前端要的 JSON（API 契约）
+server/app.py       FastAPI：/api/analyse /api/regression /api/metadata /api/report
+                    /api/train（后台任务）/api/models /api/predict
+web/                Next.js 15 前端（App Router + Tailwind 4 + recharts）
+data/<日期>/         原始 .cor，按测量日期分文件夹
+metadata/           浓度 / 批次 / 电极 / 标签
+docs/               分析报告、实验方案、部署说明（见下）
+```
+
+---
+
+## 文档
+
+| | |
+|---|---|
+| [使用说明_Web版](docs/使用说明_Web版.md) | 界面每一页怎么用 |
+| [分析说明_v3_机理](docs/分析说明_v3_机理.md) | 峰归属、Exo III 方向矛盾、比值法 |
+| [跨批次分析](docs/跨批次分析.md) | 为什么跨批次不能用同一个阈值 |
+| [数据采集方案_ML](docs/数据采集方案_ML.md) | 30 / 60 / 150 支电极三档预算与排布 |
+| [全量检测报告](docs/全量检测报告.md) | 17 个数据集逐个跑的结果 |
+| [训练与调用模型](docs/训练与调用模型.md) | 训练、模型卡、三种调用方式 |
+| [论文对照_预测模型](docs/论文对照_预测模型.md) | 与 Food Chem 2025 两篇的逐项对照 |
+| [模型完善路线](docs/模型完善路线.md) | 从现状到可用模型的五级台阶 |
+| [数据清单](docs/数据清单.md) | 每个数据集多少条、窗口、能不能用比值法 |
+| [部署说明](docs/部署说明.md) | Linux 一键部署（systemd + 反代） |
+
+---
+
+## 部署到服务器
+
+```bash
+sudo bash deploy.sh                 # 装到 /opt/dpv，对外 3000
+```
+
+自动装 python3 / Node 20、建 venv、构建前端、写两个 systemd 服务并自检。
+API 只听 `127.0.0.1:8000`，浏览器只跟 Next 的 3000 说话 —— **对外只需开一个端口**。
+参数：`--dir /srv/dpv`、`--web-port 8080`、`--no-systemd`、`--no-demo`。
+
+---
+
+## 局限（先说清楚）
+
+- **没有浓度梯度的数据算不出浓度**。这不是 bug，是实验设计决定的；工具会拒绝而不是编数。
+- 每条件只有 1 支电极的数据集，留一电极分类在数学上必然 0%，界面会直接警告。
+- 分类页的模型（LDA / 随机森林）只用于「这批数据里两组有没有差别」，不是通用的目标物识别器。
+- 跨批次迁移**尚未实现**域适应 / 迁移学习，目前只提供按批标定这个兜底方案。
+- 图内文字目前是英文（服务端容器通常没有中文字体），界面文案是中文。
+
+---
+
+## 引用与许可
+
+MIT License，见 [LICENSE](LICENSE)。用在论文里请引用本仓库：
+
+```
+DPV 电化学生物传感器分析平台 (dpv-streptomycin), https://github.com/aa932406/dpv-streptomycin
+```
+
+欢迎提 issue 描述你遇到的 `.cor` 格式变体或统计口径问题 —— 这类问题往往能变成一条护栏。
