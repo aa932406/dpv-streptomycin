@@ -51,8 +51,12 @@ export function FolderProvider({ children }: { children: React.ReactNode }) {
         const list = r.folders || []
         setFolders(list)
         const ids = new Set(list.map((f) => f.id))
+        // Prefer a dated folder (20261010 ...) over anything else, so an
+        // imported external dataset (cd36_ngml) never becomes the landing view.
         const real = list.filter((f) => !f.is_demo)
-        const fallback = real.length ? real[real.length - 1].id : list[0]?.id || ''
+        const dated = real.filter((f) => /^\d{8}$/.test(f.id))
+        const pool = dated.length ? dated : real
+        const fallback = pool.length ? pool[pool.length - 1].id : list[0]?.id || ''
         setFolder((cur) => (cur && ids.has(cur) ? cur : fallback))
       })
       .catch((e) => { setError(String(e)); setLoading(false) })
