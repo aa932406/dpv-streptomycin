@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """
-DPV (Differential Pulse Voltammetry) analysis pipeline for CHI .cor files.
+DPV (Differential Pulse Voltammetry) analysis pipeline for CorrTest .cor files.
 
 Stage 1  parse      : .cor -> tidy long table (one row per data point)
 Stage 2  baseline   : iterative reweighted polynomial envelope (upper envelope)
@@ -143,7 +143,18 @@ def parse_cor_bytes(fname: str, raw: bytes) -> dict:
     etype = next((l.strip() for l in lines if l.startswith("ID_")), "")
 
     hdr = next((i for i, l in enumerate(lines) if l.startswith("E(V)")), None)
-    # A few CHI exports are saved as plain two-column text with no header at all
+    current_density = bool(hdr is not None and re.search(
+        r"i\s*\(\s*A\s*/\s*cm(?:\^?2|²)\s*\)", lines[hdr], re.I))
+    area_cm2 = None
+    if current_density:
+        area_match = re.search(r"Surface Area:\s*([+-]?[0-9.eE]+)", txt, re.I)
+        if area_match is None:
+            area_match = re.search(r"(?:CellParam=)?Area=([+-]?[0-9.eE]+)", txt, re.I)
+        if area_match is None or float(area_match.group(1)) <= 0:
+            raise ValueError("current density is in A/cm^2 but the electrode area is missing or invalid")
+        area_cm2 = float(area_match.group(1))
+
+    # A few CorrTest exports are saved as plain two-column text with no header at all
     # (no CORRW line, no ID_, no "E(V)" row) -- two such traces sat in
     # data/20260625 and were thrown away as "no data rows", which was wrong:
     # the numbers are all there.  Fall back to reading every numeric pair.
@@ -158,6 +169,8 @@ def parse_cor_bytes(fname: str, raw: bytes) -> dict:
         except ValueError:
             continue
         t = float(parts[2]) if len(parts) > 2 else np.nan
+        if current_density:
+            i *= area_cm2
         rows.append((e, i, t))
 
     # a few exported files hold a header and no data rows at all; arr[:, 0] on an
@@ -168,6 +181,9 @@ def parse_cor_bytes(fname: str, raw: bytes) -> dict:
     technique = technique_of(etype) if (hdr is not None or not rows) else "plain"
     return dict(file=fname, etype=etype, technique=technique,
                 header=hdr is not None,
+                current_unit="A",
+                source_current_unit="A/cm^2" if current_density else "A",
+                area_cm2=area_cm2,
                 date=date, time=time, ocp=ocp, parms=parms,
                 E=arr[:, 0], I=arr[:, 1], T=arr[:, 2])
 
@@ -212,7 +228,7 @@ def group_colors(names):
             k += 1
     return out
 
-# CHI writes the experiment type into an ID_ line
+# CorrTest writes the experiment type into an ID_ line
 TECHNIQUE = {
     "ID_DiffPulseVA": "DPV",
     "ID_DPVStripping": "DPV-stripping",
@@ -361,7 +377,7 @@ def baseline_envelope(x, y, order=4, iters=12, keep=0.70):
 def resample(E, I, grid):
     """Interpolate one trace onto the shared axis.
 
-    NaN-safe and duplicate-E-safe: CHI occasionally writes two samples at the
+    NaN-safe and duplicate-E-safe: CorrTest occasionally writes two samples at the
     same potential, and np.interp then returns the last one unpredictably.
     """
     E = np.asarray(E, dtype=float)
@@ -477,7 +493,7 @@ def main():
         tech = args.technique
         print(f"analysing {tech}")
 
-    # A header-less CHI export cannot name its technique, so it is recorded as
+    # A header-less CorrTest export cannot name its technique, so it is recorded as
     # "plain"; those files are DPV scans and must not be dropped when the folder
     # is analysed as DPV (20260625 lost 2 good curves this way).
     TECH_ALIAS = {"plain": "DPV"}

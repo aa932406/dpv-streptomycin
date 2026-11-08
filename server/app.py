@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import sys
 import threading
 import time
@@ -23,7 +24,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -50,10 +51,19 @@ app.add_middleware(
 _CACHE: dict[tuple, dict] = {}
 
 
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def _folder(name: str) -> Path:
     # never let a query string walk out of data/
-    p = (DATA_DIR / name).resolve()
-    if not str(p).startswith(str(DATA_DIR.resolve())):
+    root = DATA_DIR.resolve()
+    p = (root / name).resolve()
+    if not _is_within(p, root):
         raise HTTPException(400, "bad folder")
     if not p.is_dir():
         raise HTTPException(404, "no such folder: %s" % name)
@@ -112,6 +122,69 @@ def folders():
 
 
 META_COLS = ["file", "group", "electrode", "concentration_M", "batch", "label", "role", "note"]
+
+
+@app.post("/api/folders/upload")
+async def api_upload_folder(
+    folder: str = Form(...), files: list[UploadFile] = File(...),
+):
+    """Import .cor files and an optional metadata.csv into a new data folder."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._ -]{0,79}", folder):
+        raise HTTPException(400, "folder name may contain letters, digits, spaces, '.', '_' and '-' only")
+    if folder in {".", ".."}:
+        raise HTTPException(400, "bad folder name")
+    if not files:
+        raise HTTPException(400, "select at least one .cor file")
+
+    cor_files = []
+    metadata = None
+    total = 0
+    for upload in files:
+        name = Path(upload.filename or "").name
+        if name.lower().endswith(".cor"):
+            cor_files.append((name, upload))
+        elif name.lower() == "metadata.csv":
+            metadata = upload
+        else:
+            raise HTTPException(400, "only .cor files and an optional metadata.csv are accepted")
+    if not cor_files:
+        raise HTTPException(400, "select at least one .cor file")
+    if len({name.casefold() for name, _ in cor_files}) != len(cor_files):
+        raise HTTPException(400, "duplicate .cor filenames are not allowed")
+
+    target = DATA_DIR / folder
+    if target.exists():
+        raise HTTPException(409, "a data folder with this name already exists")
+
+    payloads = []
+    for name, upload in cor_files:
+        raw = await upload.read(25 * 1024 * 1024 + 1)
+        total += len(raw)
+        if len(raw) > 25 * 1024 * 1024:
+            raise HTTPException(413, "%s exceeds the 25 MB per-file limit" % name)
+        payloads.append((name, raw))
+    metadata_raw = await metadata.read(2 * 1024 * 1024 + 1) if metadata else None
+    if metadata_raw is not None:
+        total += len(metadata_raw)
+        if len(metadata_raw) > 2 * 1024 * 1024:
+            raise HTTPException(413, "metadata.csv exceeds the 2 MB limit")
+    if total > 200 * 1024 * 1024:
+        raise HTTPException(413, "upload exceeds the 200 MB total limit")
+
+    target.mkdir(parents=True, exist_ok=False)
+    try:
+        for name, raw in payloads:
+            (target / name).write_bytes(raw)
+        if metadata_raw is not None:
+            (target / "metadata.csv").write_bytes(metadata_raw)
+    except Exception:
+        import shutil
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+
+    _CACHE.clear()
+    return {"ok": True, "folder": folder, "files": len(payloads),
+            "bytes": total, "has_metadata": metadata_raw is not None}
 
 
 @app.post("/api/metadata")
@@ -296,7 +369,7 @@ async def api_area(body: dict):
 def api_cvfiles(folder: str = Query(...)):
     """CV .cor files in a folder, with the peak currents already read.
 
-    The area card used to make you type four numbers by hand out of the CHI
+    The area card used to make you type four numbers by hand from the CorrTest
     window; this reads them from the files instead.  DPV/LSV traces are skipped
     (they only sweep one way and their "peak" is just the end of the sweep).
     """
@@ -335,9 +408,37 @@ def api_analyse(
 def _png(fig) -> bytes:
     import matplotlib
     matplotlib.use("Agg")
+    from dpv_pipeline import setup_fonts
+
+    setup_fonts()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
     return buf.getvalue()
+
+
+def _curve_figure(payload: dict):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    grid = np.asarray(payload["curves"]["grid"], float)
+    series = payload["curves"]["series"]
+    fig, ax = plt.subplots(figsize=(8.2, 4.2))
+    for item in series:
+        values = np.asarray(item["mean"], float)
+        ax.plot(grid, values, lw=1.8, label="%s  n=%s" % (item["name"], item.get("n", 0)),
+                color=item.get("color"))
+    ax.set_xlim(float(np.nanmin(grid)), float(np.nanmax(grid)))
+    ax.set_xlabel("Potential (V)", fontweight="semibold")
+    ax.set_ylabel("Current (µA)", fontweight="semibold")
+    ax.grid(axis="y", color="#eef0f3", linewidth=0.8)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#111827")
+    ax.spines["bottom"].set_color("#111827")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.16), ncol=2,
+              fontsize=8, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    return fig
 
 
 def _figures(payload: dict) -> dict[str, bytes]:
@@ -345,19 +446,12 @@ def _figures(payload: dict) -> dict[str, bytes]:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import numpy as np
+    from dpv_pipeline import setup_fonts
 
+    setup_fonts()
     out: dict[str, bytes] = {}
-    grid = np.asarray(payload["curves"]["grid"], float)
 
-    fig, ax = plt.subplots(figsize=(6.4, 3.6))
-    for s in payload["curves"]["series"]:
-        ax.plot(grid, s["mean"], lw=1.6, label=s["name"], color=s.get("color"))
-    ax.invert_xaxis()
-    ax.set_xlabel("E (V)")
-    ax.set_ylabel("i (uA)")
-    ax.set_title("Baseline-corrected DPV")
-    ax.legend(fontsize=7, frameon=False)
-    ax.spines[["top", "right"]].set_visible(False)
+    fig = _curve_figure(payload)
     out["curves.png"] = _png(fig)
     plt.close(fig)
 
@@ -420,10 +514,16 @@ def _html(payload: dict, figs: dict[str, bytes]) -> str:
         % (g["name"], g["n"], g["n_elec"], g["mean"] or 0, g["sd"] or 0,
            "-" if g["cv_pct"] is None else "%.1f%%" % g["cv_pct"])
         for g in groups)
+    curve_img = figs.get("curves.png")
+    curve_html = (
+        '<div class="fig"><img alt="各条件 DPV 曲线" src="data:image/png;base64,%s"/>'
+        '<div class="cap">各条件平均 DPV 曲线</div></div>'
+        % base64.b64encode(curve_img).decode()
+    ) if curve_img else "<p>曲线图不可用。</p>"
     imgs = "".join(
-        '<div class="fig"><img src="data:image/png;base64,%s"/><div class="cap">%s</div></div>'
-        % (base64.b64encode(v).decode(), k)
-        for k, v in figs.items())
+        '<div class="fig"><img alt="%s" src="data:image/png;base64,%s"/><div class="cap">%s</div></div>'
+        % (k.removesuffix(".png"), base64.b64encode(v).decode(), k.removesuffix(".png"))
+        for k, v in figs.items() if k != "curves.png")
     return """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <title>DPV 报告 %s</title><style>
 body{font-family:-apple-system,"Segoe UI","Noto Sans SC",sans-serif;margin:40px auto;max-width:900px;color:#101828}
@@ -434,12 +534,13 @@ th{color:#667085;font-weight:500;font-size:12px}.fig{margin:16px 0}.fig img{widt
 </style></head><body>
 <h1>链霉素 DPV 检测报告</h1>
 <p><code>%s</code> · %d 条曲线 · %d 支独立电极 · %d 个分组 · QC 合格 %d</p>
+<h2>各条件平均曲线</h2>%s
+<h2>分析图表</h2>%s
 <h2>各条件响应</h2>
 <table><tr><th>条件</th><th>曲线</th><th>电极</th><th>均值</th><th>SD</th><th>CV</th></tr>%s</table>
-<h2>图</h2>%s
-<p style="margin-top:32px;font-size:12px;color:#98a2b3">由 DPV 检测平台自动生成。图内文字为英文，因生成环境无中文字体。</p>
+<p style="margin-top:32px;font-size:12px;color:#98a2b3">由 DPV 检测平台自动生成。图中文字以英文标注以兼容不同系统字体。</p>
 </body></html>""" % (meta["folder"], meta["folder"], meta["n_curves"], meta["n_electrodes"],
-                    meta["n_groups"], meta["n_qc"], g_rows, imgs)
+                    meta["n_groups"], meta["n_qc"], curve_html, imgs, g_rows)
 
 
 @app.get("/api/report")
@@ -458,8 +559,10 @@ def api_report(
         reg = {"error": "regression unavailable"}
     try:
         figs = _figures(payload)
-    except Exception:                              # noqa: BLE001 - a missing
-        figs = {}                                  # figure must not kill the zip
+        if payload.get("meta", {}).get("n_curves", 0) > 0 and not figs.get("curves.png"):
+            raise RuntimeError("曲线图生成失败，报告未导出")
+    except Exception as exc:                       # noqa: BLE001
+        raise HTTPException(500, "无法生成报告图表：%s" % exc)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
@@ -523,7 +626,7 @@ def _model_path(name: str) -> Path:
         raise HTTPException(400, "bad model name")
     for ext in (".joblib", ".pkl"):
         p = (MODELS_DIR / (base + ext)).resolve()
-        if str(p).startswith(str(MODELS_DIR.resolve())) and p.is_file():
+        if _is_within(p, MODELS_DIR.resolve()) and p.is_file():
             return p
     raise HTTPException(404, "no such model: %s" % base)
 

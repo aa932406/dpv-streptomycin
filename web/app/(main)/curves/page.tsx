@@ -47,7 +47,7 @@ export default function CurvesPage() {
 
       <Panel
         title="各条件平均曲线 ± SD"
-        sub="峰向上为正，单位 µA"
+        sub="基线校正后的响应信号，单位 µA；峰向上为正"
         actions={
           <div className="flex items-center gap-2">
             <Label htmlFor="sd-band" className="text-[11px] font-normal text-muted-foreground">显示 SD 带</Label>

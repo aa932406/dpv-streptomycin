@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Check, FlaskConical, Layers, Save, Sparkles, SquarePen, X } from 'lucide-react'
+import { AlertTriangle, Check, FileUp, FlaskConical, FolderUp, Layers, Save, Sparkles, SquarePen, X } from 'lucide-react'
 import { useFolder } from '@/lib/folder-context'
-import { saveMetadata, type MetaRow } from '@/lib/api'
+import { saveMetadata, uploadFolder, type MetaRow } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,7 +74,7 @@ const UNITS: { k: string; label: string; mul: number }[] = [
 ]
 
 export default function DataPage() {
-  const { data, loading, error, folder, reload } = useFolder()
+  const { data, loading, error, folder, folders, setFolder, refreshFolders, reload } = useFolder()
   const [rows, setRows] = useState<MetaRow[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
@@ -84,6 +84,12 @@ export default function DataPage() {
   const [bulkCol, setBulkCol] = useState<ColKey>('concentration_M')
   const [bulkVal, setBulkVal] = useState('')
   const [flash, setFlash] = useState<string | null>(null)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [uploadName, setUploadName] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState<string | null>(null)
+  const [uploadDone, setUploadDone] = useState<string | null>(null)
+  const directoryInput = useRef<HTMLInputElement>(null)
 
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
@@ -147,9 +153,49 @@ export default function DataPage() {
     return out
   }, [rows])
 
-  if (loading) return <PageLoading />
-  if (error) return <PageError title="后端没有响应" detail={error} />
-  if (!data || !data.meta?.n_curves) return <NoCurves />
+  const uploadBytes = uploadFiles.reduce((sum, file) => sum + file.size, 0)
+  const uploadable = uploadFiles.some((file) => file.name.toLowerCase().endsWith('.cor')) &&
+    /^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/.test(uploadName.trim()) &&
+    !folders.some((item) => item.id.toLowerCase() === uploadName.trim().toLowerCase())
+
+  function onDirectoryChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = Array.from(event.target.files || [])
+    const corFiles = chosen.filter((file) => file.name.toLowerCase().endsWith('.cor'))
+    const metadata = chosen.filter((file) => file.name.toLowerCase() === 'metadata.csv')
+    setUploadFiles([...corFiles, ...metadata.slice(0, 1)])
+    setUploadErr(null)
+    setUploadDone(null)
+    const firstPath = chosen[0] as (File & { webkitRelativePath?: string }) | undefined
+    const pathFolder = firstPath?.webkitRelativePath?.split('/')[0] || ''
+    if (pathFolder) setUploadName(pathFolder.replace(/[^A-Za-z0-9._ -]/g, '_').slice(0, 80))
+  }
+
+  async function onUpload() {
+    if (!uploadable) return
+    setUploading(true)
+    setUploadErr(null)
+    setUploadDone(null)
+    try {
+      const name = uploadName.trim()
+      const result = await uploadFolder(name, uploadFiles)
+      await refreshFolders()
+      setFolder(result.folder)
+      reload()
+      setUploadDone('已导入 ' + result.files + ' 个 .cor 文件到 data/' + result.folder +
+        (result.has_metadata ? '，并导入 metadata.csv。' : '。'))
+      setUploadFiles([])
+      if (directoryInput.current) directoryInput.current.value = ''
+    } catch (e) {
+      let message = String((e as Error)?.message ?? e)
+      try { message = JSON.parse(message).detail || message } catch { /* keep raw response */ }
+      setUploadErr(message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (loading && !data) return <PageLoading />
+  if (error && !data) return <PageError title="后端没有响应" detail={error} />
 
   const set = (i: number, k: ColKey, v: string) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
@@ -242,6 +288,47 @@ export default function DataPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
+      <Panel title="导入实验目录" sub="选择本地目录，导入其中的 .cor 曲线和可选 metadata.csv">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={directoryInput}
+            type="file"
+            multiple
+            accept=".cor,.csv"
+            // @ts-expect-error webkitdirectory is supported by Chromium-based browsers
+            webkitdirectory=""
+            onChange={onDirectoryChange}
+            className="sr-only"
+          />
+          <Button variant="outline" size="sm" onClick={() => directoryInput.current?.click()} disabled={uploading}>
+            <FolderUp className="size-3.5" /> 选择本地目录
+          </Button>
+          <Input
+            className="h-8 w-[220px] text-xs"
+            aria-label="导入后的目录名称"
+            placeholder="导入后的目录名称"
+            value={uploadName}
+            onChange={(event) => setUploadName(event.target.value)}
+            disabled={uploading}
+          />
+          <Button size="sm" onClick={onUpload} disabled={!uploadable || uploading}>
+            <FileUp className="size-3.5" /> {uploading ? '正在上传…' : '上传并导入'}
+          </Button>
+        </div>
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          {uploadFiles.length
+            ? uploadFiles.filter((file) => file.name.toLowerCase().endsWith('.cor')).length + ' 个 .cor 文件 · ' +
+              (uploadFiles.some((file) => file.name.toLowerCase() === 'metadata.csv') ? '含 metadata.csv · ' : '') +
+              (uploadBytes / 1024 / 1024).toFixed(1) + ' MB · 同名目录不会覆盖'
+            : '仅上传所选目录内的 .cor 文件和根目录 metadata.csv；单文件最多 25 MB，总计最多 200 MB。'}
+        </p>
+        {uploadErr ? <p role="alert" className="mt-2 break-words text-[11px] text-red-600">导入失败：{uploadErr}</p> : null}
+        {uploadDone ? <p role="status" className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">{uploadDone}</p> : null}
+      </Panel>
+
+      {!data || !data.meta?.n_curves ? (
+        <NoCurves />
+      ) : <>
       <PageHeader
         title="数据"
         description={'这张表就是你的实验记录。填好之后保存，所有页面立刻用新值 · 文件来自 data/' + folder + '/'}
@@ -489,6 +576,7 @@ export default function DataPage() {
           ]}
         />
       </Panel>
+      </>}
     </div>
   )
 }

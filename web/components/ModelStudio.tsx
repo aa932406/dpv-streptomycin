@@ -59,6 +59,7 @@ function Warn({ title, children }: { title: string; children: React.ReactNode })
 export default function ModelStudio({ folder, order, refFrac }: { folder: string; order: number; refFrac: number }) {
   const [models, setModels] = useState<SavedModel[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [fmt, setFmt] = useState<'joblib' | 'pkl'>('joblib')
   const [training, setTraining] = useState(false)
   const [waited, setWaited] = useState(0)
@@ -73,12 +74,14 @@ export default function ModelStudio({ folder, order, refFrac }: { folder: string
   const [predErr, setPredErr] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
+    setLoadError(null)
+    setLoading(true)
     try {
       const r = await listModels()
       setModels(r.models || [])
       setSel((cur) => cur || (r.models && r.models[0] ? r.models[0].name : ''))
-    } catch {
-      setModels([])
+    } catch (e) {
+      setLoadError(errText(e))
     } finally {
       setLoading(false)
     }
@@ -211,7 +214,14 @@ export default function ModelStudio({ folder, order, refFrac }: { folder: string
       </Panel>
 
       <Panel title="模型仓库" sub={loading ? '正在读取…' : models.length + ' 个模型 · 存在服务器的 models/ 目录'}>
-        {models.length === 0 ? (
+        {loadError ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-red-500/10 px-3.5 py-3 text-[11px] ring-1 ring-red-500/20">
+            <span className="break-words text-red-700 dark:text-red-300">模型列表读取失败：{loadError}</span>
+            <Button variant="outline" size="sm" className="h-7 px-2.5 text-[10px]" onClick={reload} disabled={loading}>
+              {loading ? '正在重试…' : '重试'}
+            </Button>
+          </div>
+        ) : models.length === 0 ? (
           <div className="rounded-2xl bg-background/60 py-8 text-center text-[11px] text-muted-foreground">
             还没有训练过模型。点上面的「训练并下载模型」，或者换到有浓度梯度的文件夹（演示数据）再试。
           </div>

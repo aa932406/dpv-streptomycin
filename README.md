@@ -1,9 +1,9 @@
 # DPV 电化学生物传感器分析平台
 
-**把辰华 CHI 的 `.cor` 原始曲线，变成「检出 / 未检出 + 浓度 + 置信区间」的完整流水线。**
+**把科斯特（CorrTest，CS350H 系列）电化学工作站导出的 `.cor` 曲线，变成「检出 / 未检出 + 浓度 + 置信区间」的完整流水线。**
 解析 → 基线校正 → 找峰 → 统计检验 → 校准曲线与 LOD → 机器学习定量 → 可发表的报告，全部带**按电极 / 按批次切分的诚实验证**。
 
-> A self-hostable toolkit for electrochemical biosensor data (DPV / SWV / CV from CHI instruments).
+> A self-hostable toolkit for electrochemical biosensor data (DPV / SWV / CV), with `.cor` exports verified from CorrTest CS350H instruments.
 > Parses raw `.cor` files, does baseline correction and peak picking, runs the statistics,
 > builds calibration curves with proper LOD, trains validated regression models, and serves it all
 > through a self-hostable web UI. Validation is grouped by **electrode** and **batch**, never by
@@ -148,7 +148,7 @@ curl "http://127.0.0.1:8000/api/train/<job_id>"               # 轮询
 
 ## 支持的数据
 
-- **辰华 CHI** `.cor`（文本格式，DPV / SWV / CV / 溶出伏安都能读；同一文件夹里混着多种技术也能自动分开）
+- **科斯特 CorrTest CS350H** `.cor`（已用本项目样例文件验证；文本格式，DPV / SWV / CV / 溶出伏安均可解析，同一文件夹可自动区分扫描类型）
 - 不同日期文件夹的扫描窗口不同（0.09→−0.50、0.19→−0.20、0.60→−0.59 …）也没关系：
   窗口盖不到目标峰或内参峰时，自动换响应指标、自动跳过内参 QC，并在页面上说明原因
 - 元数据（浓度 / 批次 / 电极 / 标签）写在 `metadata.csv`，也可以在界面里填

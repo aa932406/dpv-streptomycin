@@ -416,7 +416,7 @@ export default function ExportPage() {
                       <Input
                         className="h-7 w-28 text-xs tabular-nums"
                         value={r.ip}
-                        placeholder="从 CHI 读峰电流"
+                        placeholder="从科斯特 CorrTest 读峰电流"
                         onChange={e => setRows(rs => rs.map((x, j) => j === i ? { ...x, ip: e.target.value } : x))}
                       />
                     </TableCell>

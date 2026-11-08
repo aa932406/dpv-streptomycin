@@ -7,12 +7,23 @@ import {
 import type { CalibPoint, ImportanceRow, PcaPoint, Series } from '@/lib/types'
 import { featureCN, niceTicks } from '@/lib/utils'
 
-const AXIS = { fontSize: 11, fill: '#98a2b3' }
+const AXIS = { fontSize: 11, fill: '#475467' }
 const GRID = '#eef0f3'
+const CURVE_AXIS = '#111827'
 
 function ticksFor(grid: number[], n = 6): number[] {
   if (!grid.length) return []
   return niceTicks(Math.min(...grid), Math.max(...grid), n)
+}
+
+function valueTicks(series: Series[], showBand: boolean): number[] {
+  const values = series.flatMap((s) => s.mean.flatMap((v, i) => {
+    if (!Number.isFinite(v)) return []
+    if (showBand && s.sd && Number.isFinite(s.sd[i])) return [v - s.sd[i], v + s.sd[i]]
+    return [v]
+  }))
+  if (!values.length) return []
+  return niceTicks(Math.min(...values), Math.max(...values), 5)
 }
 
 function CurveTip({ active, payload, label }: any) {
@@ -36,8 +47,9 @@ function CurveTip({ active, payload, label }: any) {
 export function CurvesChart({
   grid, series, height = 320, showBand = false,
 }: { grid: number[]; series: Series[]; height?: number; showBand?: boolean }) {
-  const rows = grid.map((x, i) => {
-    const r: Record<string, number> = { x }
+  const order = grid.map((_, i) => i).sort((a, b) => grid[a] - grid[b])
+  const rows = order.map((i) => {
+    const r: Record<string, number> = { x: grid[i] }
     series.forEach((s) => {
       r[s.name] = s.mean[i]
       if (showBand && s.sd) {
@@ -52,17 +64,22 @@ export function CurvesChart({
   return (
     <div style={{ width: '100%', height }}>
       <ResponsiveContainer>
-        <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
+        <ComposedChart data={rows} margin={{ top: 14, right: 24, bottom: 12, left: 18 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis
-            dataKey="x" type="number" domain={['dataMin', 'dataMax']} reversed
-            ticks={ticksFor(grid)} tickFormatter={(v) => Number(v).toFixed(2)}
-            tick={AXIS} axisLine={false} tickLine={false}
-            label={{ value: 'E (V)', position: 'insideBottomRight', offset: -2, fontSize: 11, fill: '#98a2b3' }}
+            dataKey="x" type="number" domain={['dataMin', 'dataMax']}
+            ticks={ticksFor(grid)} tickFormatter={(v) => Number(v).toFixed(1)}
+            tick={AXIS} axisLine={{ stroke: CURVE_AXIS, strokeWidth: 1.4 }}
+            tickLine={{ stroke: CURVE_AXIS, strokeWidth: 1.2 }}
+            label={{ value: 'Potential (V)', position: 'insideBottom', offset: -6, fontSize: 13, fontWeight: 600, fill: CURVE_AXIS }}
           />
-          <YAxis tick={AXIS} axisLine={false} tickLine={false} width={46}
+          <YAxis
+            domain={['auto', 'auto']} ticks={valueTicks(series, showBand)}
+            tick={AXIS} axisLine={{ stroke: CURVE_AXIS, strokeWidth: 1.4 }}
+            tickLine={{ stroke: CURVE_AXIS, strokeWidth: 1.2 }} width={54}
             tickFormatter={(v) => Number(v).toFixed(1)}
-            label={{ value: 'i (µA)', angle: -90, position: 'insideLeft', offset: 16, fontSize: 11, fill: '#98a2b3' }} />
+            label={{ value: 'Current (µA)', angle: -90, position: 'insideLeft', offset: 8, fontSize: 13, fontWeight: 600, fill: CURVE_AXIS }}
+          />
           <Tooltip content={<CurveTip />} />
           {showBand
             ? series.map((s) =>

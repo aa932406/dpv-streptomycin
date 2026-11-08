@@ -10,6 +10,23 @@ async function j<T>(url: string): Promise<T> {
 
 export const getFolders = () => j<{ folders: FolderInfo[] }>('/api/folders')
 
+export async function uploadFolder(folder: string, files: File[]): Promise<{
+  ok: boolean
+  folder: string
+  files: number
+  bytes: number
+  has_metadata: boolean
+}> {
+  const body = new FormData()
+  body.set('folder', folder)
+  files.forEach((file) => body.append('files', file, file.name))
+  const r = await fetch('/api/folders/upload', { method: 'POST', body })
+  if (!r.ok) throw new Error((await r.text()) || r.statusText)
+  return (await r.json()) as {
+    ok: boolean; folder: string; files: number; bytes: number; has_metadata: boolean
+  }
+}
+
 export const getAnalysis = (folder: string, order = 4, refFrac = 0.35, technique = 'auto') =>
   j<Analysis>('/api/analyse?folder=' + encodeURIComponent(folder) +
     '&order=' + order + '&ref_frac=' + refFrac + '&technique=' + encodeURIComponent(technique))

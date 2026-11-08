@@ -16,6 +16,7 @@ type Ctx = {
   technique: string
   setParams: (p: { order?: number; refFrac?: number; technique?: string }) => void
   reload: () => void
+  refreshFolders: () => Promise<FolderInfo[]>
 }
 
 const C = createContext<Ctx | null>(null)
@@ -45,22 +46,29 @@ export function FolderProvider({ children }: { children: React.ReactNode }) {
     } catch { /* private mode */ }
   }, [])
 
-  useEffect(() => {
-    getFolders()
-      .then((r) => {
-        const list = r.folders || []
-        setFolders(list)
-        const ids = new Set(list.map((f) => f.id))
-        // Prefer a dated folder (20261010 ...) over anything else, so an
-        // imported external dataset (cd36_ngml) never becomes the landing view.
-        const real = list.filter((f) => !f.is_demo)
-        const dated = real.filter((f) => /^\d{8}$/.test(f.id))
-        const pool = dated.length ? dated : real
-        const fallback = pool.length ? pool[pool.length - 1].id : list[0]?.id || ''
-        setFolder((cur) => (cur && ids.has(cur) ? cur : fallback))
-      })
-      .catch((e) => { setError(String(e)); setLoading(false) })
+  const refreshFolders = useCallback(async () => {
+    const r = await getFolders()
+    const list = r.folders || []
+    setFolders(list)
+    return list
   }, [])
+
+  useEffect(() => {
+    refreshFolders().then((list) => {
+      const ids = new Set(list.map((f) => f.id))
+      // Prefer a dated folder over an imported external dataset on first load.
+      const real = list.filter((f) => !f.is_demo)
+      const dated = real.filter((f) => /^\d{8}$/.test(f.id))
+      const pool = dated.length ? dated : real
+      const fallback = pool.length ? pool[pool.length - 1].id : list[0]?.id || ''
+      setFolder((cur) => (cur && ids.has(cur) ? cur : fallback))
+      if (!fallback) {
+        setData(null)
+        setError(null)
+        setLoading(false)
+      }
+    }).catch((e) => { setError(String(e)); setLoading(false) })
+  }, [refreshFolders])
 
   useEffect(() => {
     try {
@@ -100,7 +108,7 @@ export function FolderProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(() => setTick((t) => t + 1), [])
 
   return (
-    <C.Provider value={{ folders, folder, setFolder, data, loading, error, order, refFrac, technique, setParams, reload }}>
+    <C.Provider value={{ folders, folder, setFolder, data, loading, error, order, refFrac, technique, setParams, reload, refreshFolders }}>
       {children}
     </C.Provider>
   )
